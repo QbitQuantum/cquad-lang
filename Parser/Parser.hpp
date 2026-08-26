@@ -441,53 +441,38 @@ Node* Parser::parseStatement() {
 	
 	Node* Statement = nullptr;
 
+	// сохраняем состояние потока
+	int tempStream = stream.Pos;
+
+	// Парсим тип (int, Data*, const int[5] и т.д.)
+	Node* type = parseType();
+
 	switch (stream.peek().type)
 	{
 	case TokenKind::IdentifierLiteral:
 	{
-		// сохраняем состояние потока
-		int tempStream = stream.Pos;
-
-		// Парсим тип (int, Data*, const int[5] и т.д.)
-		Node* type = parseType();
-
-		switch (stream.peek().type)
-		{
-		case TokenKind::IdentifierLiteral:
-		{
-			Node* name = parseIdentifier();
-
-			// если после имени идет '(' - это ФУНКЦИЯ
-			if (stream.peek().type == TokenKind::LeftParen) {
-				stream.Pos = tempStream;
-				Statement = parseFunction();
-			}
-
-			// если после имени идет '=' - это ОБЪЯВЛЕНИЕ
-			// Какое это объяление решит уже это
-			else if (stream.peek().type == TokenKind::Equal) {
-				stream.Pos = tempStream;
-				Statement = parseVar();
-			}
-
-			// Случай 3: что-то другое - не объявление
-			else {
-				stream.Pos = tempStream;
-			}
-			break;
+		Node* name = parseIdentifier();
+		// если после имени идет '(' - это ФУНКЦИЯ
+		if (stream.peek().type == TokenKind::LeftParen) {
+			stream.Pos = tempStream;
+			Statement = parseFunction();
 		}
-		case TokenKind::Equal:
+		else
 		{
 			stream.Pos = tempStream;
-			Statement = parseDeclaration();
-			break;
+			Statement = parseVar();
 		}
-		default:
-			break;
-		}
+		delete name;
+		break;
+	}
+	case TokenKind::Equal:
+	{
+		stream.Pos = tempStream;
+		Statement = parseDeclaration();
 		break;
 	}
 	default:
+		throw std::runtime_error("Expected '=' or ';' after variable name");
 		break;
 	}
 
@@ -691,8 +676,10 @@ Node* Parser::parseClassStatement() {
 	
 	Node* Statement = nullptr;
 
+	// сохраняем состояние потока
 	int tempStream = stream.Pos;
 
+	// Парсим тип (int, Data*, const int[5] и т.д.)
 	Node* type = parseType();
 
 	switch (stream.peek().type)
@@ -700,24 +687,21 @@ Node* Parser::parseClassStatement() {
 	case TokenKind::IdentifierLiteral:
 	{
 		Node* name = parseIdentifier();
-
-		// Случай 1: если после имени идет '(' - это ФУНКЦИЯ
+		// если после имени идет '(' - это ФУНКЦИЯ
 		if (stream.peek().type == TokenKind::LeftParen) {
 			stream.Pos = tempStream;
 			Statement = parseFunction();
 		}
-
-		else if (stream.peek().type == TokenKind::Equal) {
+		else
+		{
 			stream.Pos = tempStream;
 			Statement = parseVar();
 		}
-
-		else {
-			stream.Pos = tempStream;
-		}
+		delete name;
 		break;
 	}
 	default:
+		throw std::runtime_error("Expected '=' or ';' after variable name");
 		break;
 	}
 
