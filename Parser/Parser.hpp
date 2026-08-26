@@ -14,6 +14,8 @@ class TokenStream
 {
 
 	std::vector<Token> Buffer;
+
+public:
 	size_t Pos = 0;
 
 public:
@@ -76,7 +78,13 @@ private:
 	Node* parseTemplateParameterInstantiation();
 	Node* parseTemplateParameterInstantiationList();
 
-	Node* ParseStatement();
+	Node* parseFunction();
+	Node* parseFunctionParameter();
+	Node* parseFunctionParameterList();
+	Node* parseFunctionBody();
+	Node* parseFunctionBlock();
+	
+	Node* parseStatement();
 	Node* parseDeclaration();
 	Node* parseDeclarationPrimary();
 
@@ -89,6 +97,7 @@ private:
 	// Парсинг класса
 	Node* parseClass();
 	Node* parseClassName();
+	Node* parseClassStatement();
 	Node* parseClassBody();
 	Node* parseClassBaseClass();
 	Node* parseClassBlock();
@@ -151,7 +160,7 @@ Node* Parser::parseTopLevel()
 {
 	switch (stream.peek().type) {
 	case TokenKind::Class:    return parseClass();
-	default: return ParseStatement();
+	default: return parseStatement();
 	}
 }
 
@@ -428,8 +437,158 @@ Node* Parser::parseIdentifier() {
 	return parseIdeitfierScope();
 }
 
-Node* Parser::ParseStatement() {
-	return parseVar();
+Node* Parser::parseStatement() {
+	
+	Node* Statement = nullptr;
+
+	switch (stream.peek().type)
+	{
+	case TokenKind::IdentifierLiteral:
+	{
+		// сохраняем состояние потока
+		int tempStream = stream.Pos;
+
+		// Парсим тип (int, Data*, const int[5] и т.д.)
+		Node* type = parseType();
+
+		switch (stream.peek().type)
+		{
+		case TokenKind::IdentifierLiteral:
+		{
+			Node* name = parseIdentifier();
+
+			// если после имени идет '(' - это ФУНКЦИЯ
+			if (stream.peek().type == TokenKind::LeftParen) {
+				stream.Pos = tempStream;
+				Statement = parseFunction();
+			}
+
+			// если после имени идет '=' - это ОБЪЯВЛЕНИЕ
+			// Какое это объяление решит уже это
+			else if (stream.peek().type == TokenKind::Equal) {
+				stream.Pos = tempStream;
+				Statement = parseVar();
+			}
+
+			// Случай 3: что-то другое - не объявление
+			else {
+				stream.Pos = tempStream;
+			}
+			break;
+		}
+		case TokenKind::Equal:
+		{
+			stream.Pos = tempStream;
+			Statement = parseDeclaration();
+			break;
+		}
+		default:
+			break;
+		}
+		break;
+	}
+	default:
+		break;
+	}
+
+	stream.consume(TokenKind::Semicolon);
+
+	return Statement;
+}
+
+Node* Parser::parseFunction() {
+	// Парсим возвращаемый тип
+	Node* returnType = parseType();
+
+	// Парсим имя функции
+	if (stream.peek().type != TokenKind::IdentifierLiteral) {
+		throw std::runtime_error("Expected function name");
+	}
+	Node* name = parseIdentifier();
+
+	// Парсим параметры
+	Node* params = parseFunctionParameterList();
+
+	// Парсим тело или ';'
+	Node* body = parseFunctionBody();
+
+	return new NodeFunction(returnType, nullptr, name, params, body);
+}
+
+Node* Parser::parseFunctionParameterList() {
+
+	if (stream.peek().type != TokenKind::LeftParen)
+		throw std::runtime_error("Expected LeftParen token");
+	stream.consume(TokenKind::LeftParen);
+
+	std::vector<Node*> ArgumentList;
+
+	if (stream.peek().type != TokenKind::RightParen)
+	{
+		ArgumentList.push_back(parseFunctionParameter());
+		while (stream.peek().type == TokenKind::Comma) {
+			stream.consume(TokenKind::Comma);
+			ArgumentList.push_back(parseFunctionParameter());
+		}
+	}
+
+	if (stream.peek().type != TokenKind::RightParen)
+		throw std::runtime_error("Expected RightParen token");
+	stream.consume(TokenKind::RightParen);
+
+	return new NodeParameterList(ArgumentList);
+}
+
+Node* Parser::parseFunctionParameter()
+{
+	// Parse parameter type
+	Node* type = parseType();
+
+	// Parse parameter name (optional)
+	Node* name = nullptr;
+	if (stream.peek().type == TokenKind::IdentifierLiteral) {
+		name = parseIdentifier();
+	}
+
+	// Check for default value
+	Node* defaultValue = nullptr;
+	if (stream.match(TokenKind::Equal)) {
+		defaultValue = parseExpression();
+	}
+
+	return new NodeVarDeclarationList(type, name, defaultValue);
+}
+
+Node* Parser::parseFunctionBody() {
+
+	Node* Body = nullptr;
+
+	if (stream.match(TokenKind::LeftBrace))
+	{
+		Body = parseFunctionBlock();
+		if (stream.peek().type != TokenKind::RightBrace)
+			throw std::runtime_error("Expected RightBrace token");
+		stream.consume(TokenKind::RightBrace);
+	}
+	else
+	{
+		if (stream.peek().type != TokenKind::Semicolon)
+			throw std::runtime_error("not expected Semicolon token");
+		stream.consume(TokenKind::Semicolon);
+	}
+	return Body;
+}
+
+Node* Parser::parseFunctionBlock()
+{
+	NodeBlock* block = new NodeBlock();
+
+	while (!stream.eof() && stream.peek().type != TokenKind::RightBrace) {
+		Node* stmt = parseStatement();
+		if (stmt) block->add(stmt);
+	}
+
+	return block;
 }
 
 Node* Parser::parseDeclaration() {
@@ -528,6 +687,45 @@ Node* Parser::parseClassName() {
 	return parseIdeitfierScope();
 }
 
+Node* Parser::parseClassStatement() {
+	
+	Node* Statement = nullptr;
+
+	int tempStream = stream.Pos;
+
+	Node* type = parseType();
+
+	switch (stream.peek().type)
+	{
+	case TokenKind::IdentifierLiteral:
+	{
+		Node* name = parseIdentifier();
+
+		// Случай 1: если после имени идет '(' - это ФУНКЦИЯ
+		if (stream.peek().type == TokenKind::LeftParen) {
+			stream.Pos = tempStream;
+			Statement = parseFunction();
+		}
+
+		else if (stream.peek().type == TokenKind::Equal) {
+			stream.Pos = tempStream;
+			Statement = parseVar();
+		}
+
+		else {
+			stream.Pos = tempStream;
+		}
+		break;
+	}
+	default:
+		break;
+	}
+
+	stream.consume(TokenKind::Semicolon);
+
+	return Statement;
+}
+
 Node* Parser::parseClassBody() {
 
 	Node* Body = nullptr;
@@ -613,7 +811,7 @@ Node* Parser::parseClassBlock() {
 			break;
 		}
 		case TokenKind::Class:    stmt = parseClass(); break;
-		default: stmt = ParseStatement(); break;
+		default: stmt = parseClassStatement(); break;
 		}
 		if (stmt) Statements.push_back(stmt);
 	}
