@@ -1,0 +1,25 @@
+class M
+{
+    // ќдиночные объ€влени€
+    int a = 10;
+    Data* data = nullptr;
+    std::vector<int> a;
+
+    // √рупповые объ€влени€
+    int x, y, z;
+    const int[5] arr1, arr2, arr3;
+    Data* ptr1, ptr2 = nullptr, ptr3;
+
+    // —мешанные (с инициализацией)
+    int a = 10, b = 20, c;
+
+    // ќбъ€вление функции
+    int* func2();
+    // ќбъ€вление функции с телом
+    int* func() { int a; };
+}
+
+// ќбъ€вление инициализации функции вне класса
+int* M::func2()
+{
+};
