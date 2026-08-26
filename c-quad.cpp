@@ -2,19 +2,46 @@
 //
 
 #include <iostream>
+#include <string>
+
+#include "Lexer.hpp"
+#include "PostLexer.hpp"
+#include "Parser.hpp"
+
+const std::string code =
+R"(
+class M
+{
+    // Одиночные объявления
+    int a = 10;
+    Data* data = nullptr;
+    std::vector<int> a;
+
+    // Групповые объявления
+    int x, y, z;
+    const int[5] arr1, arr2, arr3;
+    Data* ptr1, ptr2 = nullptr, ptr3;
+
+    // Смешанные (с инициализацией)
+    int a = 10, b = 20, c;
+
+}
+)";
 
 int main()
 {
-    std::cout << "Hello World!\n";
+	Lexer lexer(code);
+	auto lexerbuffer = lexer.GetBufferLexerToken();
+
+	PostLexer postLexer(lexerbuffer);
+	auto postlexerbuffer = postLexer.GetBufferPostLexerToken();
+
+	Parser parser(postlexerbuffer);
+	parser.Parse();
+	std::cout << "node->print()" << "\n";
+	const auto& ast = parser.GetAst();
+	for (auto* node : ast) {
+		if (node)
+			std::cout << node->print() << "\n";
+	}
 }
-
-// Запуск программы: CTRL+F5 или меню "Отладка" > "Запуск без отладки"
-// Отладка программы: F5 или меню "Отладка" > "Запустить отладку"
-
-// Советы по началу работы 
-//   1. В окне обозревателя решений можно добавлять файлы и управлять ими.
-//   2. В окне Team Explorer можно подключиться к системе управления версиями.
-//   3. В окне "Выходные данные" можно просматривать выходные данные сборки и другие сообщения.
-//   4. В окне "Список ошибок" можно просматривать ошибки.
-//   5. Последовательно выберите пункты меню "Проект" > "Добавить новый элемент", чтобы создать файлы кода, или "Проект" > "Добавить существующий элемент", чтобы добавить в проект существующие файлы кода.
-//   6. Чтобы снова открыть этот проект позже, выберите пункты меню "Файл" > "Открыть" > "Проект" и выберите SLN-файл.

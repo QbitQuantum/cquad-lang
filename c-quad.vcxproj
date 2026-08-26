@@ -102,6 +102,8 @@
       <SDLCheck>true</SDLCheck>
       <PreprocessorDefinitions>_DEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
+      <LanguageStandard>stdcpp17</LanguageStandard>
+      <AdditionalIncludeDirectories>C:\Users\AxeMODE\Desktop\cquad-lang\Token;C:\Users\AxeMODE\Desktop\cquad-lang\Lexer;C:\Users\AxeMODE\Desktop\cquad-lang\Node;C:\Users\AxeMODE\Desktop\cquad-lang\Parser;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>
@@ -116,6 +118,8 @@
       <SDLCheck>true</SDLCheck>
       <PreprocessorDefinitions>NDEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
+      <LanguageStandard>stdcpp17</LanguageStandard>
+      <AdditionalIncludeDirectories>C:\Users\AxeMODE\Desktop\cquad-lang\Token;C:\Users\AxeMODE\Desktop\cquad-lang\Lexer;C:\Users\AxeMODE\Desktop\cquad-lang\Node;C:\Users\AxeMODE\Desktop\cquad-lang\Parser;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>
