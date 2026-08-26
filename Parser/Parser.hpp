@@ -10,6 +10,14 @@
 #include "PostLexer.hpp"
 #include "Node.hpp"
 
+namespace typescope
+{
+	const int sc_unknown = -1;
+	const int sc_global = 0;
+	const int sc_class = 1;
+	const int sc_function = 2;
+}
+
 class TokenStream
 {
 
@@ -84,7 +92,7 @@ private:
 	Node* parseFunctionBody();
 	Node* parseFunctionBlock();
 	
-	Node* parseStatement();
+	Node* parseStatement(int type_scope);
 	Node* parseDeclaration();
 	Node* parseDeclarationPrimary();
 
@@ -97,7 +105,6 @@ private:
 	// Парсинг класса
 	Node* parseClass();
 	Node* parseClassName();
-	Node* parseClassStatement();
 	Node* parseClassBody();
 	Node* parseClassBaseClass();
 	Node* parseClassBlock();
@@ -114,6 +121,7 @@ private:
 	Node* parseNodeBoolean();
 	Node* parseNodeString();
 	Node* parseNodeCharacter();
+	Node* parseNodeCall();
 
 	Node* parseSizeArgCArray();
 
@@ -160,7 +168,7 @@ Node* Parser::parseTopLevel()
 {
 	switch (stream.peek().type) {
 	case TokenKind::Class:    return parseClass();
-	default: return parseStatement();
+	default: return parseStatement(typescope::sc_global);
 	}
 }
 
@@ -236,6 +244,33 @@ Node* Parser::parseNodeString() {
 
 Node* Parser::parseNodeCharacter() {
 	return new NodeCharacter(stream.consume(stream.peek().type).value);
+}
+
+Node* Parser::parseNodeCall() {
+
+	Node* CallName = parseIdentifier();
+
+	if (stream.peek().type != TokenKind::LeftParen)
+		throw std::runtime_error("Expected LeftParen token");
+	stream.consume(TokenKind::LeftParen);
+
+	std::vector<Node*> ArgumentConcreticList;
+
+	if (stream.peek().type != TokenKind::RightParen)
+	{
+		ArgumentConcreticList.push_back(parseExpression());
+		while (stream.peek().type == TokenKind::Comma) {
+			stream.consume(TokenKind::Comma);
+			ArgumentConcreticList.push_back(parseExpression());
+		}
+	}
+
+	if (stream.peek().type != TokenKind::RightParen)
+		throw std::runtime_error("Expected RightParen token");
+	stream.consume(TokenKind::RightParen);
+
+	return new NodeCall(CallName, ArgumentConcreticList);
+
 }
 
 Node* Parser::parseSizeArgCArray() {
@@ -437,7 +472,7 @@ Node* Parser::parseIdentifier() {
 	return parseIdeitfierScope();
 }
 
-Node* Parser::parseStatement() {
+Node* Parser::parseStatement(int type_scope) {
 	
 	Node* Statement = nullptr;
 
@@ -467,8 +502,20 @@ Node* Parser::parseStatement() {
 	}
 	case TokenKind::Equal:
 	{
-		stream.Pos = tempStream;
-		Statement = parseDeclaration();
+		if (type_scope == typescope::sc_function)
+		{
+			stream.Pos = tempStream;
+			Statement = parseDeclaration();
+		}
+		break;
+	}
+	case TokenKind::LeftParen:
+	{
+		if (type_scope == typescope::sc_function)
+		{
+			stream.Pos = tempStream;
+			Statement = parseNodeCall();
+		}
 		break;
 	}
 	default:
@@ -569,7 +616,7 @@ Node* Parser::parseFunctionBlock()
 	NodeBlock* block = new NodeBlock();
 
 	while (!stream.eof() && stream.peek().type != TokenKind::RightBrace) {
-		Node* stmt = parseStatement();
+		Node* stmt = parseStatement(typescope::sc_function);
 		if (stmt) block->add(stmt);
 	}
 
@@ -672,44 +719,6 @@ Node* Parser::parseClassName() {
 	return parseIdeitfierScope();
 }
 
-Node* Parser::parseClassStatement() {
-	
-	Node* Statement = nullptr;
-
-	// сохраняем состояние потока
-	int tempStream = stream.Pos;
-
-	// Парсим тип (int, Data*, const int[5] и т.д.)
-	Node* type = parseType();
-
-	switch (stream.peek().type)
-	{
-	case TokenKind::IdentifierLiteral:
-	{
-		Node* name = parseIdentifier();
-		// если после имени идет '(' - это ФУНКЦИЯ
-		if (stream.peek().type == TokenKind::LeftParen) {
-			stream.Pos = tempStream;
-			Statement = parseFunction();
-		}
-		else
-		{
-			stream.Pos = tempStream;
-			Statement = parseVar();
-		}
-		delete name;
-		break;
-	}
-	default:
-		throw std::runtime_error("Expected '=' or ';' after variable name");
-		break;
-	}
-
-	stream.consume(TokenKind::Semicolon);
-
-	return Statement;
-}
-
 Node* Parser::parseClassBody() {
 
 	Node* Body = nullptr;
@@ -795,7 +804,7 @@ Node* Parser::parseClassBlock() {
 			break;
 		}
 		case TokenKind::Class:    stmt = parseClass(); break;
-		default: stmt = parseClassStatement(); break;
+		default: stmt = parseStatement(typescope::sc_class); break;
 		}
 		if (stmt) Statements.push_back(stmt);
 	}
