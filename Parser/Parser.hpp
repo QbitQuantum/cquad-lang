@@ -801,6 +801,7 @@ Node* Parser::parseClassBlock() {
 			}
 			Type = getClassFieldType(Scope);
 			stream.consume(Scope);
+			stream.consume(TokenKind::Colon);
 			break;
 		}
 		case TokenKind::Class:    stmt = parseClass(); break;
