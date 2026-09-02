@@ -303,44 +303,48 @@ Node* Parser::parseType() {
 	bool IsConst = false;
 	NodeType::EType eType = NodeType::EType::NONE;
 
-	// Проверям на константность
-	if (stream.match(TokenKind::Const))
-		IsConst = true;
+	bool is_auto = stream.match(TokenKind::Auto);
 
-	// Проверяем наличие типа
-	if (stream.peek().type != TokenKind::IdentifierLiteral)
-		throw std::runtime_error("Expected identifier token");
-
-	// Парсим имя типа
-	Type = parseIdeitfierScope();
-
-	if (stream.match(TokenKind::LeftBracket))
+	if (!is_auto)
 	{
-		SizeArgCArray = parseSizeArgCArray();
-		if (!stream.match(TokenKind::RightBracket))
-			throw std::runtime_error("Expected RightBracket token");
-	}
+		// Проверям на константность
+		if (stream.match(TokenKind::Const))
+			IsConst = true;
 
-	// Проверяем семантику 
-	switch (stream.peek().type)
-	{
-	case TokenKind::Asterisk:
-		stream.consume(TokenKind::Asterisk);
-		eType = NodeType::EType::POINTER;
-		break;
-	case TokenKind::Ampersand:
-		stream.consume(TokenKind::Ampersand);
-		eType = NodeType::EType::REF;
-		break;
-	case TokenKind::And:
-		stream.consume(TokenKind::And);
-		eType = NodeType::EType::RVALUE;
-		break;
-	default:
-		break;
-	}
+		// Проверяем наличие типа
+		if (stream.peek().type != TokenKind::IdentifierLiteral)
+			throw std::runtime_error("Expected identifier token");
 
-	return new NodeType(Type, SizeArgCArray, IsConst, eType);
+		// Парсим имя типа
+		Type = parseIdeitfierScope();
+
+		if (stream.match(TokenKind::LeftBracket))
+		{
+			SizeArgCArray = parseSizeArgCArray();
+			if (!stream.match(TokenKind::RightBracket))
+				throw std::runtime_error("Expected RightBracket token");
+		}
+
+		// Проверяем семантику 
+		switch (stream.peek().type)
+		{
+		case TokenKind::Asterisk:
+			stream.consume(TokenKind::Asterisk);
+			eType = NodeType::EType::POINTER;
+			break;
+		case TokenKind::Ampersand:
+			stream.consume(TokenKind::Ampersand);
+			eType = NodeType::EType::REF;
+			break;
+		case TokenKind::And:
+			stream.consume(TokenKind::And);
+			eType = NodeType::EType::RVALUE;
+			break;
+		default:
+			break;
+		}
+	}
+	return new NodeType(Type, SizeArgCArray, IsConst, eType, is_auto);
 };
 
 Node* Parser::parsePrimary() {

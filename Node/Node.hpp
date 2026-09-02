@@ -48,6 +48,7 @@ public:
     Node* SizeArgCArray = nullptr;
     bool IsConst = false;
     EType eType = EType::NONE;
+    bool IsAuto = false;
     std::string getSymbol() const {
         switch (eType)
         {
@@ -58,16 +59,23 @@ public:
         }
     }
 public:
-    NodeType(Node* type, Node* sizeArgCArray, bool isConst, EType etype) :
-        Type(type), SizeArgCArray(sizeArgCArray), IsConst(isConst), eType(etype) {};
+    NodeType(Node* type, Node* sizeArgCArray, bool isConst, EType etype, bool isAuto) :
+        Type(type), SizeArgCArray(sizeArgCArray), IsConst(isConst), eType(etype), IsAuto(isAuto) {};
 
     std::string print() override {
-        
-        if (!Type) return "";
-        std::string fprint = "[" + 
-            (IsConst ? std::string("const ") : std::string("")) + 
-            Type->print() + (SizeArgCArray ? "[" + SizeArgCArray->print() + "]" : "") +
-            getSymbol() + "]";
+        std::string fprint = "[";
+        if (!IsAuto)
+        {
+            if (Type)
+                fprint += (IsConst ? std::string("const ") : std::string("")) +
+                Type->print() + (SizeArgCArray ? "[" + SizeArgCArray->print() + "]" : "") +
+                getSymbol();
+        }
+        else
+        {
+            fprint += "auto";
+        }
+        fprint += "]";
         return fprint;
     };
 
