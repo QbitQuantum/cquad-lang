@@ -20,28 +20,9 @@ std::string ReadFile(std::string filepath) {
     return content;
 };
 
-template<typename T>
-void function() {};
-
-
-
-template<int T>
-int arf = 3;
-
 int main()
 {
-	if (arf<3> 3)
-	{
-
-	}
-
-
     std::string code = ReadFile("code.cqq");
-	function<int>();
-
-	arf<int> = 3;
-
-	
 
     Lexer lexer(code);
 	auto lexerbuffer = lexer.GetBufferLexerToken();

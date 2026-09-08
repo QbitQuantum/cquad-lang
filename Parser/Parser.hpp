@@ -98,6 +98,7 @@ private:
 
     Node* parseTopLevel();
 
+    Node* parseIdentifierScope();
     Node* parseIdentifier();
 
     Node* parseTemplateParameterInstantiation();
@@ -404,7 +405,7 @@ Node* Parser::parseType() {
         if (stream.peek().type != TokenKind::IdentifierLiteral)
             raise("Expected identifier token");
 
-        Type = parseIdentifier();
+        Type = parseIdentifierScope();
 
         if (stream.match(TokenKind::LeftBracket))
         {
@@ -504,7 +505,7 @@ Node* Parser::parseTemplateParameterInstantiationList() {
     return new NodeTemplateParameterInstantiationList(TemplateParameterInstantiationList);
 }
 
-Node* Parser::parseIdentifier() {
+Node* Parser::parseIdentifierScope() {
     std::string Identifier = "";
     std::vector<std::string> Scope;
     Node* IdentifierTemplateParameterInstantiationList = nullptr;
@@ -535,6 +536,10 @@ Node* Parser::parseIdentifier() {
             return new NodeIdentifier(IdentifierTemplateParameterInstantiationList, Identifier, new NodeScope(Scope));
         }
     }
+}
+
+Node* Parser::parseIdentifier() {
+    return parseIdentifierScope();
 }
 
 Node* Parser::parseStatement(int type_scope) {
@@ -675,7 +680,7 @@ Node* Parser::parseDeclaration() {
     Node* Expression = nullptr;
 
     if (stream.peek().type == TokenKind::IdentifierLiteral)
-        Identifier = parseIdentifier();
+        Identifier = parseIdentifierScope();
 
     if (stream.peek().type == TokenKind::Equal)
     {
@@ -693,7 +698,7 @@ Node* Parser::parseDeclarationPrimary() {
     Node* Expression = nullptr;
 
     if (stream.peek().type == TokenKind::IdentifierLiteral)
-        Identifier = parseIdentifier();
+        Identifier = parseIdentifierScope();
 
     if (stream.peek().type == TokenKind::Equal)
     {
@@ -746,7 +751,7 @@ Node* Parser::parseClass() {
 Node* Parser::parseClassName() {
     if (stream.peek().type != TokenKind::IdentifierLiteral)
         raise("Expected class name");
-    return parseIdentifier();
+    return parseIdentifierScope();
 }
 
 Node* Parser::parseClassBody() {
