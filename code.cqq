@@ -16,7 +16,7 @@ class M
     // Объявление функции
     int* func2();
     // Объявление функции с телом
-    int* func() { int a; };
+    int* func() { int a; return a; };
 }
 
 int* M::func2()

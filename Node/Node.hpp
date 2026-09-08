@@ -1052,7 +1052,7 @@ public:
     explicit NodeReturn(Node* expression) : Expression(expression) {}
 
     std::string print() override {
-        return Expression ? Expression->print() : "";
+        return "return " + (Expression ? Expression->print() : "");
     }
 
     ~NodeReturn() override

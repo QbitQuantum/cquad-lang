@@ -180,7 +180,7 @@ public:
         throw ParseError::ParseError(token.line, token.column, msg);
     }
 
-    void parseToken(TokenKind kind, const std::string& msg = "", bool soft = true) {
+    void parseToken(TokenKind kind, const std::string& msg, bool soft = false) {
         if (!stream.match(kind)) if (!soft) raise(msg);
     }
 
@@ -237,7 +237,7 @@ Node* Parser::parseIf() {
     stream.consume(TokenKind::If);
     Node* Condition = parseIfCondition();
     Node* Body = parseIfBody();
-    parseToken(TokenKind::Semicolon);
+    parseToken(TokenKind::Semicolon, "", true);
     return new NodeIf(Condition, Body);
 }
 
@@ -278,7 +278,7 @@ Node* Parser::parseWhile() {
     Node* Condition = parseWhileCondition();
     bool hasDo = stream.match(TokenKind::Do);
     Node* Body = parseWhileBody();
-    parseToken(TokenKind::Semicolon);
+    parseToken(TokenKind::Semicolon, "", true);
     return new NodeWhile(Condition, Body, hasDo);
 }
 
