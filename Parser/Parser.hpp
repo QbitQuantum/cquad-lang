@@ -98,7 +98,6 @@ private:
 
     Node* parseTopLevel();
 
-    Node* parseIdentifierScope();
     Node* parseIdentifier();
 
     Node* parseTemplateParameterInstantiation();
@@ -205,6 +204,39 @@ Node* Parser::parseTopLevel()
     switch (stream.peek().type) {
     case TokenKind::Class:    return parseClass();
     default: return parseStatement(typescope::sc_global);
+    }
+}
+
+Node* Parser::parseIdentifier() {
+    std::string Identifier = "";
+    std::vector<std::string> Scope;
+    Node* IdentifierTemplateParameterInstantiationList = nullptr;
+
+    while (true) {
+        switch (stream.peek().type) {
+        case TokenKind::IdentifierLiteral:
+            if (Identifier.empty())
+            {
+                Identifier = stream.consume(TokenKind::IdentifierLiteral).value;
+            }
+            else
+            {
+                return new NodeIdentifier(IdentifierTemplateParameterInstantiationList, Identifier, new NodeScope(Scope));
+            }
+            break;
+        case TokenKind::ScResOp:
+            stream.consume(TokenKind::ScResOp);
+            if (stream.peek().type != TokenKind::IdentifierLiteral)
+                raise("Expected identifier after '::'");
+            Scope.push_back(Identifier);
+            Identifier = "";
+            break;
+        case TokenKind::Less:
+            IdentifierTemplateParameterInstantiationList = parseTemplateParameterInstantiationList();
+            return new NodeIdentifier(IdentifierTemplateParameterInstantiationList, Identifier, new NodeScope(Scope));
+        default:
+            return new NodeIdentifier(IdentifierTemplateParameterInstantiationList, Identifier, new NodeScope(Scope));
+        }
     }
 }
 
@@ -405,7 +437,7 @@ Node* Parser::parseType() {
         if (stream.peek().type != TokenKind::IdentifierLiteral)
             raise("Expected identifier token");
 
-        Type = parseIdentifierScope();
+        Type = parseIdentifier();
 
         if (stream.match(TokenKind::LeftBracket))
         {
@@ -503,43 +535,6 @@ Node* Parser::parseTemplateParameterInstantiationList() {
     }
     parseToken(TokenKind::Greater, "Expected Greater token");
     return new NodeTemplateParameterInstantiationList(TemplateParameterInstantiationList);
-}
-
-Node* Parser::parseIdentifierScope() {
-    std::string Identifier = "";
-    std::vector<std::string> Scope;
-    Node* IdentifierTemplateParameterInstantiationList = nullptr;
-
-    while (true) {
-        switch (stream.peek().type) {
-        case TokenKind::IdentifierLiteral:
-            if (Identifier.empty())
-            {
-                Identifier = stream.consume(TokenKind::IdentifierLiteral).value;
-            }
-            else
-            {
-                return new NodeIdentifier(IdentifierTemplateParameterInstantiationList, Identifier, new NodeScope(Scope));
-            }
-            break;
-        case TokenKind::ScResOp:
-            stream.consume(TokenKind::ScResOp);
-            if (stream.peek().type != TokenKind::IdentifierLiteral)
-                raise("Expected identifier after '::'");
-            Scope.push_back(Identifier);
-            Identifier = "";
-            break;
-        case TokenKind::Less:
-            IdentifierTemplateParameterInstantiationList = parseTemplateParameterInstantiationList();
-            return new NodeIdentifier(IdentifierTemplateParameterInstantiationList, Identifier, new NodeScope(Scope));
-        default:
-            return new NodeIdentifier(IdentifierTemplateParameterInstantiationList, Identifier, new NodeScope(Scope));
-        }
-    }
-}
-
-Node* Parser::parseIdentifier() {
-    return parseIdentifierScope();
 }
 
 Node* Parser::parseStatement(int type_scope) {
@@ -680,7 +675,7 @@ Node* Parser::parseDeclaration() {
     Node* Expression = nullptr;
 
     if (stream.peek().type == TokenKind::IdentifierLiteral)
-        Identifier = parseIdentifierScope();
+        Identifier = parseIdentifier();
 
     if (stream.peek().type == TokenKind::Equal)
     {
@@ -698,7 +693,7 @@ Node* Parser::parseDeclarationPrimary() {
     Node* Expression = nullptr;
 
     if (stream.peek().type == TokenKind::IdentifierLiteral)
-        Identifier = parseIdentifierScope();
+        Identifier = parseIdentifier();
 
     if (stream.peek().type == TokenKind::Equal)
     {
@@ -751,7 +746,7 @@ Node* Parser::parseClass() {
 Node* Parser::parseClassName() {
     if (stream.peek().type != TokenKind::IdentifierLiteral)
         raise("Expected class name");
-    return parseIdentifierScope();
+    return parseIdentifier();
 }
 
 Node* Parser::parseClassBody() {
