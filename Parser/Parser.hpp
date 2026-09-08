@@ -18,6 +18,13 @@ namespace typescope
 	const int sc_function = 2;
 }
 
+namespace typeexpression
+{
+	const int sc_unknown = -1;
+	const int sc_condition = 0;
+	const int sc_expression = 1;
+}
+
 class TokenStream
 {
 
@@ -110,7 +117,15 @@ private:
 	Node* parseClassBlock();
 
 	Node* parsePrimary();
-	Node* parseExpression(int priory = 0);
+	Node* parseExpression(int priory = 0, int typeexpression = typeexpression::sc_expression);
+
+	// Парсинг условий
+	Node* ParseCondition();
+	Node* parseIf();
+	Node* parseIfCondition();
+	Node* parseIfBody();
+	Node* parseElse();
+	Node* parseElseBody();
 
 	Node* parseNew();
 	Node* parseDelete();
@@ -172,7 +187,7 @@ Node* Parser::parseTopLevel()
 	}
 }
 
-Node* Parser::parseExpression(int MinPrec) {
+Node* Parser::parseExpression(int MinPrec, int _typeexpression) {
 
 	using BinaryOperand = NodeBinaryOp::BinaryOp;
 	BinaryOperand UnaryOp = BinaryOperand::Unknown;
@@ -189,20 +204,86 @@ Node* Parser::parseExpression(int MinPrec) {
 		};
 
 	Node* Left = parsePrimary();
-
+	
 	while (true) {
 		TokenKind op = stream.peek().type;
-		if (!tok::IsBinaryOperator(op))
+		bool typeexpression = _typeexpression == typeexpression::sc_expression ? tok::IsBinaryOperator(op) : tok::IsConditionalOperator(op);
+		if (!typeexpression)
 			break;
 		int currentPriority = tok::GetBinaryOperatorPriority(op);
 		if (currentPriority < MinPrec)
 			break;
 		stream.consume(op);
-		Node* Right = parseExpression(currentPriority + 1);
+		Node* Right = parseExpression(currentPriority + 1, _typeexpression);
 		Left = new NodeBinaryOp(getBinaryOperand(op), Left, Right);
 	}
-
+	
 	return Left;
+}
+
+// if (...) body [else body]
+Node* Parser::ParseCondition() {
+	Node* ifCondition = parseIf();
+	Node* elseCondition = nullptr;
+	if (stream.peek().type == TokenKind::Else)
+		elseCondition = parseElse();
+	return new NodeCondition(ifCondition, elseCondition);
+}
+
+Node* Parser::parseIf() {
+	if (stream.peek().type != TokenKind::If)
+		throw std::runtime_error("Expected 'if'");
+	stream.consume(TokenKind::If);
+
+	Node* Condition = parseIfCondition();
+	Node* Body = parseIfBody();
+
+	return new NodeIf(Condition, Body);
+}
+
+Node* Parser::parseIfCondition() {
+	if (stream.peek().type != TokenKind::LeftParen)
+		throw std::runtime_error("Expected '(' after 'if'");
+	stream.consume(TokenKind::LeftParen);
+
+	Node* Condition = parseExpression(0, typeexpression::sc_condition);
+
+	if (stream.peek().type != TokenKind::RightParen)
+		throw std::runtime_error("Expected ')' after if-condition");
+	stream.consume(TokenKind::RightParen);
+
+	return Condition;
+}
+
+// Тело: либо блок { ... }, либо одиночный statement
+Node* Parser::parseIfBody() {
+	if (stream.match(TokenKind::LeftBrace)) {
+		Node* block = parseFunctionBlock();
+		if (stream.peek().type != TokenKind::RightBrace)
+			throw std::runtime_error("Expected '}' after if-body");
+		stream.consume(TokenKind::RightBrace);
+		return block;
+	}
+
+	// одиночный statement (в т.ч. вложенный if)
+	NodeBlock* block = new NodeBlock();
+	Node* stmt = (stream.peek().type == TokenKind::If)
+		? ParseCondition()
+		: parseStatement(typescope::sc_function);
+	if (stmt) block->add(stmt);
+	return block;
+}
+
+Node* Parser::parseElse() {
+	stream.consume(TokenKind::Else);
+	Node* Body = parseElseBody();
+	return new NodeElse(Body);
+}
+
+Node* Parser::parseElseBody() {
+	// грамматика тела одинаковая, "else if" всё равно распарсится
+	// как else { if ... } через одиночный statement, если понадобится
+	return parseIfBody();
 }
 
 Node* Parser::parseNew() {
@@ -620,7 +701,11 @@ Node* Parser::parseFunctionBlock()
 	NodeBlock* block = new NodeBlock();
 
 	while (!stream.eof() && stream.peek().type != TokenKind::RightBrace) {
-		Node* stmt = parseStatement(typescope::sc_function);
+		Node* stmt = nullptr;
+		switch (stream.peek().type) {
+		case TokenKind::If:    stmt = parseIf(); break;
+		default: stmt = parseStatement(typescope::sc_function); break;
+		}
 		if (stmt) block->add(stmt);
 	}
 

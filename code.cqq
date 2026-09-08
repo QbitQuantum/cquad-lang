@@ -25,4 +25,6 @@ class M
 int* M::func2()
 {
     func();
+    if (a) { }
+    if (a == b) { }
 };

@@ -367,6 +367,42 @@ namespace tok
         }
     }
 
+    bool static IsConditionalOperator(TokenKind Kind) {
+        switch (Kind) {
+            // Операторы сравнения
+        case TokenKind::Equals:        // ==
+        case TokenKind::NotEqual:      // !=
+        case TokenKind::Less:          // <
+        case TokenKind::Greater:       // >
+        case TokenKind::LessEqual:     // <=
+        case TokenKind::GreaterEqual:  // >=
+
+            // Логические операторы
+        case TokenKind::Or:            // ||
+        case TokenKind::And:           // &&
+
+            // Побитовые операторы
+        case TokenKind::Pipe:          // |
+        case TokenKind::Caret:         // ^
+        case TokenKind::Ampersand:     // &
+
+            // Операторы сдвига
+        case TokenKind::Shl:           // <<
+        case TokenKind::Shr:           // >>
+
+            // Арифметические операторы
+        case TokenKind::Plus:          // +
+        case TokenKind::Minus:         // -
+        case TokenKind::Asterisk:      // *
+        case TokenKind::Slash:         // /
+        case TokenKind::Percent:       // %
+            return true;
+
+        default:
+            return false;
+        }
+    }
+
 #define GENERATE_NAME(name) \
 case TokenKind::name: return #name; \
 

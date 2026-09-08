@@ -985,8 +985,6 @@ public:
     }
 
     std::string print() override {
-        if (Op == BinaryOp::Unknown)
-            return "";
         if (!Left || !Right)
             return "";
         return Left->print() + " " + getSymbol() + " " + Right->print();
@@ -995,6 +993,53 @@ public:
         delete Left;
         delete Right;
     }
+};
+
+class NodeCondition : public Node {
+private:
+    Node* If = nullptr;
+    Node* Else = nullptr;
+public:
+    NodeCondition(Node* _if, Node* _else)
+        : If(_if), Else(_else) {
+    }
+
+    std::string print() override {
+        if (!If) return "";
+        std::string fprint = If->print();
+        fprint += Else ? Else->print() : "";
+        return fprint;
+    }
+    ~NodeCondition() {
+        delete If;
+        delete Else;
+    }
+};
+
+class NodeIf : public Node {
+public:
+    Node* Condition = nullptr;
+    Node* Body = nullptr;
+
+    std::string print() override {
+        if (!Condition || !Body) return "";
+        std::string fprint = "if (" + Condition->print() + ")";
+        fprint += Body ? Body->print() : "";
+        return fprint;
+    }
+
+    NodeIf(Node* cond, Node* body) : Condition(cond), Body(body) {}
+    ~NodeIf() { delete Condition; delete Body; }
+};
+
+class NodeElse : public Node {
+    Node* Body = nullptr;
+public:
+    std::string print() override {
+        return Body ? Body->print() : "";
+    }
+    NodeElse(Node* body) : Body(body) {}
+    ~NodeElse() { delete Body; }
 };
 
 class NodeUnaryOp : public Node {
