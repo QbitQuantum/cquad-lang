@@ -6,7 +6,8 @@
 #include <string>
 #include <memory>
 #include <vector>
-
+#include <NodeBinaryOperand.h>
+#include <NodeUnaryOperand.h>
 class Node
 {
 protected:
@@ -960,37 +961,38 @@ public:
 };
 
 class NodeBinaryOp : public Node {
-public:
-    enum class BinaryOp
-    {
-        Unknown, Plus, Minus, Asterisk, Slash
-    };
-private:
-    BinaryOp Op = BinaryOp::Unknown;
+    BinaryOperand Operand = BinaryOperand::Unknown;
     Node* Left = nullptr;
     Node* Right = nullptr;
-    std::string getSymbol()
-    {
-        switch (Op) {
-        case BinaryOp::Plus: return "+";
-        case BinaryOp::Minus: return "-";
-        case BinaryOp::Asterisk: return "*";
-        case BinaryOp::Slash: return "/";
-        default: return "";
-        }
-    }
 public:
-    NodeBinaryOp(const BinaryOp& op, Node* left, Node* right)
-        : Op(op), Left(left), Right(right) {
+    NodeBinaryOp(const BinaryOperand& operand, Node* left, Node* right)
+        : Operand(operand), Left(left), Right(right) {
     }
 
     std::string print() override {
-        if (!Left || !Right)
+        if (!Left || !Right || Operand == BinaryOperand::Unknown)
             return "";
-        return Left->print() + " " + getSymbol() + " " + Right->print();
+        return Left->print() + " " + BinOparand::opToString(Operand) + " " + Right->print();
     }
     ~NodeBinaryOp() {
         delete Left;
+        delete Right;
+    }
+};
+
+class NodeUnaryOp : public Node {
+    UnaryOperand Operand = UnaryOperand::Unknown;
+    Node* Right = nullptr;
+public:
+    NodeUnaryOp(const UnaryOperand& operand, Node* right)
+        : Operand(operand), Right(right) {
+    }
+
+    std::string print() override {
+        if (!Right) return "";
+        return UnOparand::opToString(Operand) + Right->print();
+    }
+    ~NodeUnaryOp() {
         delete Right;
     }
 };
@@ -1040,37 +1042,6 @@ public:
     }
     NodeElse(Node* body) : Body(body) {}
     ~NodeElse() { delete Body; }
-};
-
-class NodeUnaryOp : public Node {
-public:
-    enum class UnaryOp
-    {
-        Unknown, Minus
-    };
-private:
-    UnaryOp Op = UnaryOp::Unknown;
-    Node* Right = nullptr;
-    std::string getSymbol()
-    {
-        switch (Op) {
-        case UnaryOp::Minus: return "-";
-        default: return "";
-        }
-    }
-public:
-    NodeUnaryOp(const UnaryOp& op, Node* right)
-        : Op(op), Right(right) {
-    }
-
-    std::string print() override {
-        if (!Right)
-            return "";
-        return getSymbol() + Right->print();
-    }
-    ~NodeUnaryOp() {
-        delete Right;
-    }
 };
 
 #endif // NODE_HPP

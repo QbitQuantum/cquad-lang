@@ -5,7 +5,6 @@
 #include <vector>
 #include <iostream>
 #include <memory>
-
 #include "PostLexer.hpp"
 #include "ParserError.hpp"
 #include "Node.hpp"
@@ -213,22 +212,7 @@ Node* Parser::parseTopLevel()
 }
 
 Node* Parser::parseExpression(int MinPrec, int _typeexpression) {
-    using BinaryOperand = NodeBinaryOp::BinaryOp;
-    BinaryOperand UnaryOp = BinaryOperand::Unknown;
-
-    auto getBinaryOperand = [](TokenKind op) -> BinaryOperand
-        {
-            switch (op) {
-            case TokenKind::Minus: return BinaryOperand::Minus;
-            case TokenKind::Plus: return BinaryOperand::Plus;
-            case TokenKind::Asterisk: return BinaryOperand::Asterisk;
-            case TokenKind::Slash: return BinaryOperand::Slash;
-            default: return BinaryOperand::Unknown;
-            }
-        };
-
     Node* Left = parsePrimary();
-
     while (true) {
         TokenKind op = stream.peek().type;
         bool typeexpression = _typeexpression == typeexpression::sc_expression ? tok::IsBinaryOperator(op) : tok::IsConditionalOperator(op);
@@ -239,9 +223,8 @@ Node* Parser::parseExpression(int MinPrec, int _typeexpression) {
             break;
         stream.consume(op);
         Node* Right = parseExpression(currentPriority + 1, _typeexpression);
-        Left = new NodeBinaryOp(getBinaryOperand(op), Left, Right);
+        Left = new NodeBinaryOp(BinOparand::getBinaryOperand(op), Left, Right);
     }
-
     return Left;
 }
 
@@ -443,20 +426,10 @@ Node* Parser::parseType() {
 }
 
 Node* Parser::parsePrimary() {
-    using UnaryOperand = NodeUnaryOp::UnaryOp;
     UnaryOperand UnaryOp = UnaryOperand::Unknown;
-
-    auto getUnaryOperand = [](TokenKind op) -> UnaryOperand
-        {
-            switch (op) {
-            case TokenKind::Minus: return UnaryOperand::Minus;
-            default: return UnaryOperand::Unknown;
-            }
-        };
-
     if (tok::IsUnaryOperator(stream.peek().type))
     {
-        UnaryOp = getUnaryOperand(stream.peek().type);
+        UnaryOp = UnOparand::getUnaryOperand(stream.peek().type);
         stream.consume(stream.peek().type);
     }
 
