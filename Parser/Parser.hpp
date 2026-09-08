@@ -501,7 +501,10 @@ Node* Parser::parseTemplateParameterInstantiationList() {
             TemplateParameterInstantiationList.push_back(parseTemplateParameterInstantiation());
         }
     }
-    parseToken(TokenKind::Greater, "Expected Greater token");
+    if (stream.peek().type != TokenKind::Greater)
+        raise("Expected Greater token");
+    stream.consume(TokenKind::Greater);
+
     return new NodeTemplateParameterInstantiationList(TemplateParameterInstantiationList);
 }
 
