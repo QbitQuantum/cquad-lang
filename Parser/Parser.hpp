@@ -784,9 +784,7 @@ Node* Parser::parseClassBody() {
     }
     else
     {
-        if (stream.peek().type != TokenKind::Semicolon)
-            raise("Expected ';' after class forward declaration");
-        stream.consume(TokenKind::Semicolon);
+        parseToken(TokenKind::Semicolon, "Expected ';' after class forward declaration");
     }
 
     return Body;
