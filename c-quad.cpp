@@ -31,7 +31,16 @@ int main()
 	auto postlexerbuffer = postLexer.GetBufferPostLexerToken();
 
 	Parser parser(postlexerbuffer);
-	parser.Parse();
+	try
+	{
+		parser.Parse();
+	}
+	catch (const ParseError& err)
+	{
+		std::cerr << "ParseError: " 
+			<< std::to_string(err.line()) + ":" + std::to_string(err.column()) + " " + err.what() << "\n";
+	}
+
 	std::cout << "node->print()" << "\n";
 	const auto& ast = parser.GetAst();
 	for (auto* node : ast) {
