@@ -5,9 +5,9 @@
 
 #include <vector>
 #include <iostream>
-#include <stdexcept>
 
 #include "PostLexer.hpp"
+#include "ParserError.hpp"
 #include "Node.hpp"
 
 namespace typescope
@@ -166,6 +166,11 @@ public:
 			if (i) delete i;
 	};
 
+	void raise(const std::string& msg) {
+		auto token = stream.peek();
+		throw ParseError::ParseError(token.line, token.column, msg);
+	}
+
 	void Parse() {
 
 		while (!stream.eof()) {
@@ -237,7 +242,7 @@ Node* Parser::ParseCondition() {
 
 Node* Parser::parseIf() {
 	if (stream.peek().type != TokenKind::If)
-		throw std::runtime_error("Expected 'if'");
+		raise("Expected 'if'");
 	stream.consume(TokenKind::If);
 
 	Node* Condition = parseIfCondition();
@@ -248,13 +253,13 @@ Node* Parser::parseIf() {
 
 Node* Parser::parseIfCondition() {
 	if (stream.peek().type != TokenKind::LeftParen)
-		throw std::runtime_error("Expected '(' after 'if'");
+		raise("Expected '(' after 'if'");
 	stream.consume(TokenKind::LeftParen);
 
 	Node* Condition = parseExpression(0, typeexpression::sc_condition);
 
 	if (stream.peek().type != TokenKind::RightParen)
-		throw std::runtime_error("Expected ')' after if-condition");
+		raise("Expected ')' after if-condition");
 	stream.consume(TokenKind::RightParen);
 
 	return Condition;
@@ -265,7 +270,7 @@ Node* Parser::parseIfBody() {
 	if (stream.match(TokenKind::LeftBrace)) {
 		Node* block = parseFunctionBlock();
 		if (stream.peek().type != TokenKind::RightBrace)
-			throw std::runtime_error("Expected '}' after if-body");
+			raise("Expected '}' after if-body");
 		stream.consume(TokenKind::RightBrace);
 		return block;
 	}
@@ -302,13 +307,13 @@ Node* Parser::parseWhile() {
 
 Node* Parser::parseWhileCondition() {
 	if (stream.peek().type != TokenKind::LeftParen)
-		throw std::runtime_error("Expected '(' after 'while'");
+		raise("Expected '(' after 'while'");
 
 	stream.consume(TokenKind::LeftParen);
 	Node* Condition = parseExpression(0, typeexpression::sc_condition);
 
 	if (stream.peek().type != TokenKind::RightParen)
-		throw std::runtime_error("Expected ')' after while-condition");
+		raise("Expected ')' after while-condition");
 
 	stream.consume(TokenKind::RightParen);
 	return Condition;
@@ -319,7 +324,7 @@ Node* Parser::parseWhileBody() {
 	if (stream.match(TokenKind::LeftBrace)) {
 		Body = parseFunctionBlock();
 		if (stream.peek().type != TokenKind::RightBrace)
-			throw std::runtime_error("Expected '}' after while-body");
+			raise("Expected '}' after while-body");
 		stream.consume(TokenKind::RightBrace);
 	}
 	else 
@@ -379,7 +384,7 @@ Node* Parser::parseNodeCall() {
 	Node* CallName = parseIdentifier();
 
 	if (stream.peek().type != TokenKind::LeftParen)
-		throw std::runtime_error("Expected LeftParen token");
+		raise("Expected LeftParen token");
 	stream.consume(TokenKind::LeftParen);
 
 	std::vector<Node*> ArgumentConcreticList;
@@ -394,7 +399,7 @@ Node* Parser::parseNodeCall() {
 	}
 
 	if (stream.peek().type != TokenKind::RightParen)
-		throw std::runtime_error("Expected RightParen token");
+		raise("Expected RightParen token");
 	stream.consume(TokenKind::RightParen);
 
 	return new NodeCall(CallName, ArgumentConcreticList);
@@ -411,7 +416,7 @@ Node* Parser::parseSizeArgCArray() {
 		return parseNodeInteger(); break;
 	default: break;
 	}
-	throw std::runtime_error("Not correct token");
+	raise("Not correct token");
 }
 
 Node* Parser::parseType() {
@@ -441,7 +446,7 @@ Node* Parser::parseType() {
 
 		// Проверяем наличие типа
 		if (stream.peek().type != TokenKind::IdentifierLiteral)
-			throw std::runtime_error("Expected identifier token");
+			raise("Expected identifier token");
 
 		// Парсим имя типа
 		Type = parseIdeitfierScope();
@@ -450,7 +455,7 @@ Node* Parser::parseType() {
 		{
 			SizeArgCArray = parseSizeArgCArray();
 			if (!stream.match(TokenKind::RightBracket))
-				throw std::runtime_error("Expected RightBracket token");
+				raise("Expected RightBracket token");
 		}
 
 		// Проверяем семантику 
@@ -529,12 +534,12 @@ Node* Parser::parsePrimary() {
 		stream.consume(TokenKind::LeftParen);
 		Right = parseExpression();
 		if (stream.peek().type != TokenKind::RightParen) {
-			throw std::runtime_error("Expected ')'");
+			raise("Expected ')'");
 		}
 		stream.consume(TokenKind::RightParen);
 		break;
 	}
-	default: throw std::runtime_error("Unexpected token in primary expression");
+	default: raise("Unexpected token in primary expression");
 	}
 	return UnaryOp == UnaryOperand::Unknown ? Right : new NodeUnaryOp(UnaryOp, Right);
 }
@@ -559,7 +564,7 @@ Node* Parser::parseTemplateParameterInstantiationList() {
 		}
 	}
 	if (stream.peek().type != TokenKind::Greater)
-		throw std::runtime_error("Expected Greater token");
+		raise("Expected Greater token");
 	stream.consume(TokenKind::Greater);
 
 	return new NodeTemplateParameterInstantiationList(TemplateParameterInstantiationList);
@@ -586,7 +591,7 @@ Node* Parser::parseIdeitfierScope() {
 		case TokenKind::ScResOp:
 			stream.consume(TokenKind::ScResOp);
 			if (stream.peek().type != TokenKind::IdentifierLiteral)
-				throw std::runtime_error("Expected identifier after '::'");
+				raise("Expected identifier after '::'");
 			Scope.push_back(Identifier);
 			Identifier = "";
 			break;
@@ -651,7 +656,7 @@ Node* Parser::parseStatement(int type_scope) {
 		break;
 	}
 	default:
-		throw std::runtime_error("Expected '=' or ';' after variable name");
+		raise("Expected '=' or ';' after variable name");
 		break;
 	}
 
@@ -666,7 +671,7 @@ Node* Parser::parseFunction() {
 
 	// Парсим имя функции
 	if (stream.peek().type != TokenKind::IdentifierLiteral) {
-		throw std::runtime_error("Expected function name");
+		raise("Expected function name");
 	}
 	Node* name = parseIdentifier();
 
@@ -682,7 +687,7 @@ Node* Parser::parseFunction() {
 Node* Parser::parseFunctionParameterList() {
 
 	if (stream.peek().type != TokenKind::LeftParen)
-		throw std::runtime_error("Expected LeftParen token");
+		raise("Expected LeftParen token");
 	stream.consume(TokenKind::LeftParen);
 
 	std::vector<Node*> ArgumentList;
@@ -697,7 +702,7 @@ Node* Parser::parseFunctionParameterList() {
 	}
 
 	if (stream.peek().type != TokenKind::RightParen)
-		throw std::runtime_error("Expected RightParen token");
+		raise("Expected RightParen token");
 	stream.consume(TokenKind::RightParen);
 
 	return new NodeParameterList(ArgumentList);
@@ -731,13 +736,13 @@ Node* Parser::parseFunctionBody() {
 	{
 		Body = parseFunctionBlock();
 		if (stream.peek().type != TokenKind::RightBrace)
-			throw std::runtime_error("Expected RightBrace token");
+			raise("Expected RightBrace token");
 		stream.consume(TokenKind::RightBrace);
 	}
 	else
 	{
 		if (stream.peek().type != TokenKind::Semicolon)
-			throw std::runtime_error("not expected Semicolon token");
+			raise("not expected Semicolon token");
 		stream.consume(TokenKind::Semicolon);
 	}
 	return Body;
@@ -773,7 +778,7 @@ Node* Parser::parseDeclaration() {
 	if (stream.peek().type == TokenKind::Equal)
 	{
 		if (!Identifier)
-			throw std::runtime_error("Expected identifier");
+			raise("Expected identifier");
 		stream.consume(TokenKind::Equal);
 		Exptression = parseExpression();
 	}
@@ -794,7 +799,7 @@ Node* Parser::parseDeclarationPrimary() {
 	if (stream.peek().type == TokenKind::Equal)
 	{
 		if (!Identifier)
-			throw std::runtime_error("Expected identifier");
+			raise("Expected identifier");
 		stream.consume(TokenKind::Equal);
 		Exptression = parsePrimary();
 	}
@@ -852,7 +857,7 @@ Node* Parser::parseClass() {
 
 Node* Parser::parseClassName() {
 	if (stream.peek().type != TokenKind::IdentifierLiteral)
-		throw std::runtime_error("Expected class name");
+		raise("Expected class name");
 	return parseIdeitfierScope();
 }
 
@@ -865,13 +870,13 @@ Node* Parser::parseClassBody() {
 		stream.consume(TokenKind::LeftBrace);
 		Body = parseClassBlock();
 		if (stream.peek().type != TokenKind::RightBrace)
-			throw std::runtime_error("Expected '}' after class declaration");
+			raise("Expected '}' after class declaration");
 		stream.consume(TokenKind::RightBrace);
 	}
 	else
 	{
 		if (stream.peek().type != TokenKind::Semicolon)
-			throw std::runtime_error("Expected ';' after class forward declaration");
+			raise("Expected ';' after class forward declaration");
 	}
 
 	return Body;
