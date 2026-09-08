@@ -1044,4 +1044,21 @@ public:
     ~NodeElse() { delete Body; }
 };
 
+class NodeReturn : public Node
+{
+public:
+    Node* Expression = nullptr;
+
+    explicit NodeReturn(Node* expression) : Expression(expression) {}
+
+    std::string print() override {
+        return Expression ? Expression->print() : "";
+    }
+
+    ~NodeReturn() override
+    {
+        delete Expression;
+    }
+};
+
 #endif // NODE_HPP

@@ -70,11 +70,9 @@ public:
             skipTrivia();
             return tok;
         }
-        // simple error recovery: return current token without advancing
         return tok;
     }
 
-    // Сохранение и восстановление позиции
     size_t savePosition() const {
         return Pos;
     }
@@ -90,7 +88,6 @@ private:
     TokenStream stream;
     std::vector<Node*> ast;
 
-    // Вспомогательные методы
     bool isAtEnd() const { return stream.eof(); }
 
     TokenKind currentTokenKind() const { return stream.peek().type; }
@@ -99,7 +96,6 @@ private:
 
     void skipTrivia() { stream.skipTrivia(); }
 
-    // Основные методы парсинга
     Node* parseTopLevel();
 
     Node* parseIdentifierScope();
@@ -142,6 +138,8 @@ private:
     Node* parseWhile();
     Node* parseWhileCondition();
     Node* parseWhileBody();
+
+    Node* parseReturn();
 
     Node* parseNew();
     Node* parseDelete();
@@ -192,7 +190,6 @@ public:
                 ast.push_back(node);
             }
             else {
-                // basic recovery: advance one token
                 advance();
             }
         }
@@ -306,6 +303,17 @@ Node* Parser::parseWhileBody() {
         Body = block;
     }
     return Body;
+}
+
+Node* Parser::parseReturn() {
+    stream.consume(TokenKind::Return);
+
+    Node* expr = nullptr;
+    if (stream.peek().type != TokenKind::Semicolon) {
+        expr = parseExpression();
+    }
+    parseToken(TokenKind::Semicolon, "Expected ';' after return statement");
+    return new NodeReturn(expr);
 }
 
 Node* Parser::parseNew() {
@@ -659,8 +667,9 @@ Node* Parser::parseFunctionBlock()
     while (!isAtEnd() && stream.peek().type != TokenKind::RightBrace) {
         Node* stmt = nullptr;
         switch (stream.peek().type) {
-        case TokenKind::If:    stmt = parseIf(); break;
-        case TokenKind::While: stmt = parseWhile(); break;
+        case TokenKind::If:     stmt = parseIf(); break;
+        case TokenKind::While:  stmt = parseWhile(); break;
+        case TokenKind::Return: stmt = parseReturn(); break;
         default: stmt = parseStatement(typescope::sc_function); break;
         }
         if (stmt) block->add(stmt);
@@ -671,7 +680,7 @@ Node* Parser::parseFunctionBlock()
 
 Node* Parser::parseDeclaration() {
     Node* Identifier = nullptr;
-    Node* Expression = nullptr;  // Исправлено: Exptression -> Expression
+    Node* Expression = nullptr;
 
     if (stream.peek().type == TokenKind::IdentifierLiteral)
         Identifier = parseIdentifierScope();
@@ -689,7 +698,7 @@ Node* Parser::parseDeclaration() {
 
 Node* Parser::parseDeclarationPrimary() {
     Node* Identifier = nullptr;
-    Node* Expression = nullptr;  // Исправлено: Exptression -> Expression
+    Node* Expression = nullptr;
 
     if (stream.peek().type == TokenKind::IdentifierLiteral)
         Identifier = parseIdentifierScope();
