@@ -394,17 +394,6 @@ Node* Parser::parseSizeArgCArray() {
 }
 
 Node* Parser::parseType() {
-
-	/*
-	Допустимые вариации типов
-	T&          // изменяемая ссылка
-	const T&    // неизменяемая ссылка
-	T*          // указатель
-	const T*    // указатель на константу
-	T&&         // rvalue-ссылка (move)
-	const T&&   // - бессмысленно, но для простоты парсинга
-	*/
-
 	Node* Type = nullptr;
 	Node* SizeArgCArray = nullptr;
 	bool IsConst = false;
