@@ -1,29 +1,214 @@
-class M
-{
-    // Одиночные объявления
-    int a = 10;
-    Data* data = nullptr;
-    std::vector<int> a;
-
-    // Групповые объявления
-    int x, y, z;
-    const int[5] arr1, arr2, arr3;
-    Data* ptr1, ptr2 = nullptr, ptr3;
-
-    // Смешанные (с инициализацией)
-    int a = 10, b = 20, c;
-
-    // Объявление функции
-    int* func2();
-    // Объявление функции с телом
-    int* func() { int a; return a; };
+class MathUtils {
+private:
+    // Поля класса
+    int lastResult;
+    int operationCount;
+    
+public:
+    // Конструктор
+    void MathUtils() {
+        lastResult = 0;
+        operationCount = 0;
+    }
+    
+    // Вычисление факториала
+    int factorial(int n) {
+        operationCount = operationCount + 1;
+        
+        if (n <= 1) {
+            lastResult = 1;
+            return 1;
+        }
+        
+        int result = 1;
+        int i = 2;
+        while (i <= n) {
+            result = result * i;
+            i = i + 1;
+        }
+        
+        lastResult = result;
+        return result;
+    }
+    
+    // Проверка на простоту
+    bool isPrime(int n) {
+        operationCount = operationCount + 1;
+        
+        if (n <= 1) {
+            lastResult = 0;
+            return false;
+        }
+        
+        if (n == 2) {
+            lastResult = 1;
+            return true;
+        }
+        
+        if (n % 2 == 0) {
+            lastResult = 0;
+            return false;
+        }
+        
+        int i = 3;
+        while (i * i <= n) {
+            if (n % i == 0) {
+                lastResult = 0;
+                return false;
+            }
+            i = i + 2;
+        }
+        
+        lastResult = 1;
+        return true;
+    }
+    
+    // Получение последнего результата
+    int getLastResult() {
+        return lastResult;
+    }
+    
+    // Получение количества операций
+    int getOperationCount() {
+        return operationCount;
+    }
+    
+    // Сброс счётчика операций
+    void resetCounter() {
+        operationCount = 0;
+    }
 }
 
-int* M::func2()
-{
-    func();
-    while (a == b) {}
-    while (a == b) do {};
-    if (a == b) {};
-    if (a) {}
-};
+int sumArray(int[5] arr) {
+    int sum = 0;
+    int i = 0;
+    while (i < a) 
+    {
+        sum = sum + arr[i];
+        i = i + 1;
+    }
+    return sum;
+}
+
+// Вычисление среднего арифметического
+double averageArray(int[5] arr) {
+    int sum = sumArray(arr);
+    double avg = cast<double>(sum) / 5.0;
+    return avg;
+}
+
+// Поиск максимума в массиве
+int maxArray(int[5] arr) {
+    int max = arr[0];
+    int i = 1;
+    while (i < 5) {
+        if (arr[i] > max) {
+            max = arr[i];
+        }
+        i = i + 1;
+    }
+    return max;
+}
+
+// =====================================================
+// Точка входа (глобальная main функция)
+// =====================================================
+
+void main() {
+    // --- Тестирование класса MathUtils ---
+    MathUtils math;
+    
+    // Вычисление факториалов
+    int fact5 = math.factorial(5);
+    int fact7 = math.factorial(7);
+    
+    // Проверка чисел на простоту
+    bool prime7 = math.isPrime(7);
+    bool prime10 = math.isPrime(10);
+    bool prime17 = math.isPrime(17);
+    bool prime25 = math.isPrime(25);
+    
+    // --- Работа с массивами ---
+    int[5] numbers = {12, 7, 25, 3, 18};
+    int[5] primes = {2, 3, 5, 7, 11};
+    
+    int sum = sumArray(numbers);
+    double avg = averageArray(primes);
+    int max = maxArray(numbers);
+    
+    // --- Логические переменные ---
+    bool isEven;
+    int x = 10;
+    int y = 5;
+    int z = 7;
+    
+    if (x % 2 == 0) {
+        isEven = true;
+    } else {
+        isEven = false;
+    }
+    
+    // --- Сложные условия ---
+    bool condition1;
+    bool condition2;
+    bool result;
+    
+    condition1 = (x > y);
+    condition2 = (y < z);
+    result = condition1 && condition2;
+    
+    // --- Цикл с break (если поддерживается) ---
+    int counter = 0;
+    int target = 42;
+    int found = -1;
+    
+    while (counter < 10) {
+        if (counter == target) {
+            found = counter;
+            // break; // если поддерживается
+        }
+        counter = counter + 1;
+    }
+    
+    // --- Вложенные условия ---
+    int grade = 85;
+    char letter;
+    
+    if (grade >= 90) {
+        letter = 'A';
+    } else {
+        if (grade >= 80) {
+            letter = 'B';
+        } else {
+            if (grade >= 70) {
+                letter = 'C';
+            } else {
+                if (grade >= 60) {
+                    letter = 'D';
+                } else {
+                    letter = 'F';
+                }
+            }
+        }
+    }
+    
+    // --- Нет вывода (пока что), просто вычисления ---
+    // Программа "завершается" успешно
+}
+
+// =====================================================
+// Дополнительная функция для демонстрации
+// =====================================================
+
+// Функция, возвращающая указатель (демонстрация)
+int* getPointerToMax(int[5] arr) {
+    int* maxPtr = &arr[0];
+    int i = 1;
+    while (i < 5) {
+        if (arr[i] > *maxPtr) {
+            maxPtr = &arr[i];
+        }
+        i = i + 1;
+    }
+    return maxPtr;
+}
