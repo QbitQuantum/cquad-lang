@@ -1,30 +1,6 @@
-class M
-{
-    // Одиночные объявления
-    int a = 10;
-    Data* data = nullptr;
-    std::vector<int> a;
-
-    // Групповые объявления
-    int x, y, z;
-    const int[5] arr1, arr2, arr3;
-    Data* ptr1, ptr2 = nullptr, ptr3;
-
-    // Смешанные (с инициализацией)
-    int a = 10, b = 20, c;
-
-    auto Temp = 3;
-
-    // Объявление функции
-    int* func2();
-    // Объявление функции с телом
-    int* func() { int a; };
-}
-
-// Объявление инициализации функции вне класса
 int* M::func2()
 {
     func();
-    if (a) { }
-    if (a == b) { }
+    while (a == b) {}
+    while (a == b) do {}
 };

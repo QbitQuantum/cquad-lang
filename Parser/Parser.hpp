@@ -127,6 +127,11 @@ private:
 	Node* parseElse();
 	Node* parseElseBody();
 
+	// Парсинг циклов
+	Node* parseWhile();
+	Node* parseWhileCondition();
+	Node* parseWhileBody();
+
 	Node* parseNew();
 	Node* parseDelete();
 	Node* parseNullptr();
@@ -284,6 +289,48 @@ Node* Parser::parseElseBody() {
 	// грамматика тела одинаковая, "else if" всё равно распарсится
 	// как else { if ... } через одиночный statement, если понадобится
 	return parseIfBody();
+}
+
+Node* Parser::parseWhile() {
+	stream.consume(TokenKind::While);
+	Node* Condition = parseWhileCondition();
+	// Проверяем наличие 'do' для конструкции while (cond) do {}
+	bool hasDo = stream.match(TokenKind::Do);
+	Node* Body = parseWhileBody();
+	return new NodeWhile(Condition, Body, hasDo);
+}
+
+Node* Parser::parseWhileCondition() {
+	if (stream.peek().type != TokenKind::LeftParen)
+		throw std::runtime_error("Expected '(' after 'while'");
+
+	stream.consume(TokenKind::LeftParen);
+	Node* Condition = parseExpression(0, typeexpression::sc_condition);
+
+	if (stream.peek().type != TokenKind::RightParen)
+		throw std::runtime_error("Expected ')' after while-condition");
+
+	stream.consume(TokenKind::RightParen);
+	return Condition;
+}
+
+Node* Parser::parseWhileBody() {
+	Node* Body = nullptr;
+	if (stream.match(TokenKind::LeftBrace)) {
+		Body = parseFunctionBlock();
+		if (stream.peek().type != TokenKind::RightBrace)
+			throw std::runtime_error("Expected '}' after while-body");
+		stream.consume(TokenKind::RightBrace);
+	}
+	else 
+	{
+		NodeBlock* block = new NodeBlock();
+		Node* stmt = parseStatement(typescope::sc_function);
+		if (stmt) block->add(stmt);
+		Body = block;
+	}
+
+	return Body;
 }
 
 Node* Parser::parseNew() {
@@ -704,6 +751,7 @@ Node* Parser::parseFunctionBlock()
 		Node* stmt = nullptr;
 		switch (stream.peek().type) {
 		case TokenKind::If:    stmt = parseIf(); break;
+		case TokenKind::While: stmt = parseWhile(); break;
 		default: stmt = parseStatement(typescope::sc_function); break;
 		}
 		if (stmt) block->add(stmt);
