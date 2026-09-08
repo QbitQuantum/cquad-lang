@@ -171,6 +171,10 @@ public:
 		throw ParseError::ParseError(token.line, token.column, msg);
 	}
 
+	void parseToken(TokenKind kind, const std::string& msg) {
+		if (!stream.match(kind)) raise(msg);
+	}
+
 	void Parse() {
 
 		while (!stream.eof()) {
@@ -241,10 +245,7 @@ Node* Parser::ParseCondition() {
 }
 
 Node* Parser::parseIf() {
-	if (stream.peek().type != TokenKind::If)
-		raise("Expected 'if'");
-	stream.consume(TokenKind::If);
-
+	stream.consume(TokenKind::Else);
 	Node* Condition = parseIfCondition();
 	Node* Body = parseIfBody();
 
@@ -252,30 +253,19 @@ Node* Parser::parseIf() {
 }
 
 Node* Parser::parseIfCondition() {
-	if (stream.peek().type != TokenKind::LeftParen)
-		raise("Expected '(' after 'if'");
-	stream.consume(TokenKind::LeftParen);
-
+	parseToken(TokenKind::LeftParen, "Expected '(' after 'if'");
 	Node* Condition = parseExpression(0, typeexpression::sc_condition);
-
-	if (stream.peek().type != TokenKind::RightParen)
-		raise("Expected ')' after if-condition");
-	stream.consume(TokenKind::RightParen);
-
+	parseToken(TokenKind::RightParen, "Expected ')' after if-condition");
 	return Condition;
 }
 
-// Тело: либо блок { ... }, либо одиночный statement
 Node* Parser::parseIfBody() {
 	if (stream.match(TokenKind::LeftBrace)) {
 		Node* block = parseFunctionBlock();
-		if (stream.peek().type != TokenKind::RightBrace)
-			raise("Expected '}' after if-body");
-		stream.consume(TokenKind::RightBrace);
+		parseToken(TokenKind::RightBrace, "Expected '}' after if-body");
 		return block;
 	}
 
-	// одиночный statement (в т.ч. вложенный if)
 	NodeBlock* block = new NodeBlock();
 	Node* stmt = (stream.peek().type == TokenKind::If)
 		? ParseCondition()
@@ -291,31 +281,21 @@ Node* Parser::parseElse() {
 }
 
 Node* Parser::parseElseBody() {
-	// грамматика тела одинаковая, "else if" всё равно распарсится
-	// как else { if ... } через одиночный statement, если понадобится
 	return parseIfBody();
 }
 
 Node* Parser::parseWhile() {
 	stream.consume(TokenKind::While);
 	Node* Condition = parseWhileCondition();
-	// Проверяем наличие 'do' для конструкции while (cond) do {}
 	bool hasDo = stream.match(TokenKind::Do);
 	Node* Body = parseWhileBody();
 	return new NodeWhile(Condition, Body, hasDo);
 }
 
 Node* Parser::parseWhileCondition() {
-	if (stream.peek().type != TokenKind::LeftParen)
-		raise("Expected '(' after 'while'");
-
-	stream.consume(TokenKind::LeftParen);
+	parseToken(TokenKind::LeftParen, "Expected '(' after 'while'");
 	Node* Condition = parseExpression(0, typeexpression::sc_condition);
-
-	if (stream.peek().type != TokenKind::RightParen)
-		raise("Expected ')' after while-condition");
-
-	stream.consume(TokenKind::RightParen);
+	parseToken(TokenKind::RightParen, "Expected ')' after while-condition");
 	return Condition;
 }
 
@@ -323,9 +303,7 @@ Node* Parser::parseWhileBody() {
 	Node* Body = nullptr;
 	if (stream.match(TokenKind::LeftBrace)) {
 		Body = parseFunctionBlock();
-		if (stream.peek().type != TokenKind::RightBrace)
-			raise("Expected '}' after while-body");
-		stream.consume(TokenKind::RightBrace);
+		parseToken(TokenKind::RightBrace, "Expected '}' after while-body");
 	}
 	else 
 	{
@@ -383,9 +361,7 @@ Node* Parser::parseNodeCall() {
 
 	Node* CallName = parseIdentifier();
 
-	if (stream.peek().type != TokenKind::LeftParen)
-		raise("Expected LeftParen token");
-	stream.consume(TokenKind::LeftParen);
+	parseToken(TokenKind::LeftParen, "Expected '}' after Identifier");
 
 	std::vector<Node*> ArgumentConcreticList;
 
@@ -398,9 +374,7 @@ Node* Parser::parseNodeCall() {
 		}
 	}
 
-	if (stream.peek().type != TokenKind::RightParen)
-		raise("Expected RightParen token");
-	stream.consume(TokenKind::RightParen);
+	parseToken(TokenKind::RightParen, "Expected '}'");
 
 	return new NodeCall(CallName, ArgumentConcreticList);
 
@@ -533,10 +507,7 @@ Node* Parser::parsePrimary() {
 	{
 		stream.consume(TokenKind::LeftParen);
 		Right = parseExpression();
-		if (stream.peek().type != TokenKind::RightParen) {
-			raise("Expected ')'");
-		}
-		stream.consume(TokenKind::RightParen);
+		parseToken(TokenKind::RightParen, "Expected ')'");
 		break;
 	}
 	default: raise("Unexpected token in primary expression");
@@ -685,11 +656,9 @@ Node* Parser::parseFunction() {
 }
 
 Node* Parser::parseFunctionParameterList() {
-
-	if (stream.peek().type != TokenKind::LeftParen)
-		raise("Expected LeftParen token");
-	stream.consume(TokenKind::LeftParen);
-
+	
+	parseToken(TokenKind::LeftParen, "Expected  '('");
+	
 	std::vector<Node*> ArgumentList;
 
 	if (stream.peek().type != TokenKind::RightParen)
@@ -701,9 +670,7 @@ Node* Parser::parseFunctionParameterList() {
 		}
 	}
 
-	if (stream.peek().type != TokenKind::RightParen)
-		raise("Expected RightParen token");
-	stream.consume(TokenKind::RightParen);
+	parseToken(TokenKind::RightParen, "Expected  ')'");
 
 	return new NodeParameterList(ArgumentList);
 }
@@ -735,15 +702,11 @@ Node* Parser::parseFunctionBody() {
 	if (stream.match(TokenKind::LeftBrace))
 	{
 		Body = parseFunctionBlock();
-		if (stream.peek().type != TokenKind::RightBrace)
-			raise("Expected RightBrace token");
-		stream.consume(TokenKind::RightBrace);
+		parseToken(TokenKind::RightBrace, "Expected  '}'");
 	}
 	else
 	{
-		if (stream.peek().type != TokenKind::Semicolon)
-			raise("not expected Semicolon token");
-		stream.consume(TokenKind::Semicolon);
+		parseToken(TokenKind::Semicolon, "Expected  ';'");
 	}
 	return Body;
 }
@@ -869,9 +832,7 @@ Node* Parser::parseClassBody() {
 	{
 		stream.consume(TokenKind::LeftBrace);
 		Body = parseClassBlock();
-		if (stream.peek().type != TokenKind::RightBrace)
-			raise("Expected '}' after class declaration");
-		stream.consume(TokenKind::RightBrace);
+		parseToken(TokenKind::RightBrace, "Expected '}' after class declaration");
 	}
 	else
 	{
