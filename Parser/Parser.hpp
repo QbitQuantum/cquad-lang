@@ -98,7 +98,7 @@ private:
 
     Node* parseTopLevel();
 
-    Node* parseIdentifier();
+    Node* parseIdentifier(int _typeexpression = typeexpression::sc_unknown);
 
     Node* parseTemplateParameterInstantiation();
     Node* parseTemplateParameterInstantiationList();
@@ -207,7 +207,7 @@ Node* Parser::parseTopLevel()
     }
 }
 
-Node* Parser::parseIdentifier() {
+Node* Parser::parseIdentifier(int _typeexpression) {
     std::string Identifier = "";
     std::vector<std::string> Scope;
     Node* IdentifierTemplateParameterInstantiationList = nullptr;
@@ -232,7 +232,8 @@ Node* Parser::parseIdentifier() {
             Identifier = "";
             break;
         case TokenKind::Less:
-            IdentifierTemplateParameterInstantiationList = parseTemplateParameterInstantiationList();
+            if (_typeexpression != typeexpression::sc_condition)
+                IdentifierTemplateParameterInstantiationList = parseTemplateParameterInstantiationList();
             return new NodeIdentifier(IdentifierTemplateParameterInstantiationList, Identifier, new NodeScope(Scope));
         default:
             return new NodeIdentifier(IdentifierTemplateParameterInstantiationList, Identifier, new NodeScope(Scope));
@@ -487,7 +488,7 @@ Node* Parser::parsePrimary() {
     case TokenKind::Default:
         Right = parseDefault(); break;
     case TokenKind::IdentifierLiteral:
-        Right = parseIdentifier(); break;
+        Right = parseIdentifier(typeexpression::sc_condition); break;
     case TokenKind::IntegerLiteral:
     case TokenKind::HexLiteral:
     case TokenKind::BinaryLiteral:
