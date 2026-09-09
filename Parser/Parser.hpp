@@ -99,6 +99,7 @@ private:
     Node* parseTopLevel();
 
     Node* parseIdentifier(int _typeexpression = typeexpression::sc_unknown);
+    Node* parseIdentifierExpression(int _typeexpression = typeexpression::sc_unknown);
 
     Node* parseTemplateParameterInstantiation();
     Node* parseTemplateParameterInstantiationList();
@@ -149,7 +150,7 @@ private:
     Node* parseNodeBoolean();
     Node* parseNodeString();
     Node* parseNodeCharacter();
-    Node* parseNodeCall();
+    Node* parseNodeCall(Node* Identifier);
 
     Node* parseSizeArgCArray();
 
@@ -239,6 +240,18 @@ Node* Parser::parseIdentifier(int _typeexpression) {
             return new NodeIdentifier(IdentifierTemplateParameterInstantiationList, Identifier, new NodeScope(Scope));
         }
     }
+}
+
+Node* Parser::parseIdentifierExpression(int _typeexpression) {
+    Node* IdentExpression = parseIdentifier(_typeexpression);
+    if (stream.peek().type == TokenKind::LeftParen)
+        IdentExpression = parseNodeCall(IdentExpression);
+    if (stream.peek().type == TokenKind::Dot || stream.peek().type == TokenKind::Arrow)
+    {
+        bool IsArrow = stream.peek().type == TokenKind::Arrow; advance();
+        IdentExpression = new NodeMemberCall(IdentExpression, parseIdentifierExpression(_typeexpression), IsArrow);
+    }
+    return IdentExpression;
 }
 
 Node* Parser::parseExpression(int MinPrec, int _typeexpression) {
@@ -389,8 +402,8 @@ Node* Parser::parseNodeCharacter() {
     return new NodeCharacter(stream.consume(stream.peek().type).value);
 }
 
-Node* Parser::parseNodeCall() {
-    Node* CallName = parseIdentifier();
+Node* Parser::parseNodeCall(Node* CallName) {
+    
     parseToken(TokenKind::LeftParen, "Expected '(' after Identifier");
 
     std::vector<Node*> ArgumentConcreticList;
@@ -488,7 +501,8 @@ Node* Parser::parsePrimary() {
     case TokenKind::Default:
         Right = parseDefault(); break;
     case TokenKind::IdentifierLiteral:
-        Right = parseIdentifier(typeexpression::sc_condition); break;
+        Right = parseIdentifierExpression(typeexpression::sc_condition);
+        break;
     case TokenKind::IntegerLiteral:
     case TokenKind::HexLiteral:
     case TokenKind::BinaryLiteral:
@@ -575,7 +589,8 @@ Node* Parser::parseStatement(int type_scope) {
         if (type_scope == typescope::sc_function)
         {
             stream.restorePosition(savedPos);
-            Statement = parseNodeCall();
+            Node* CallName = parseIdentifier();
+            Statement = parseNodeCall(CallName);
         }
         break;
     }
