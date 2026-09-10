@@ -403,6 +403,20 @@ namespace tok
         }
     }
 
+    inline bool isWhitespaceToken(TokenKind k) noexcept {
+        return k == TokenKind::Space
+            || k == TokenKind::Tab
+            || k == TokenKind::LineFeed
+            || k == TokenKind::CarriageReturn
+            || k == TokenKind::VerticalTab
+            || k == TokenKind::FormFeed;
+    }
+
+    inline bool isCommentToken(TokenKind k) noexcept {
+        return k == TokenKind::LineComment
+            || k == TokenKind::BlockComment;
+    }
+
 #define GENERATE_NAME(name) \
 case TokenKind::name: return #name; \
 

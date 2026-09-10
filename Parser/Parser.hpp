@@ -47,8 +47,13 @@ public:
         skipTrivia();
     }
 
+    inline bool isTriviaToken() const noexcept {
+        const TokenKind& k = peek().type;
+        return tok::isWhitespaceToken(k) || tok::isCommentToken(k);
+    }
+
     void skipTrivia() {
-        while (!eof() && (peek().type == TokenKind::Space || peek().type == TokenKind::LineFeed)) {
+        while (!eof() && isTriviaToken()) {
             ++Pos;
         }
     }

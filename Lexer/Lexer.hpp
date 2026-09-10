@@ -28,7 +28,6 @@ private:
     {'\n',&Lexer::LineFeed},
     {'\r',&Lexer::CarriageReturn},
     {'/', &Lexer::Slash},
-    {'\t',&Lexer::Tab},
 
     {'.', &Lexer::LexNumericConstant},
     {'0', &Lexer::LexNumericConstant},
@@ -45,7 +44,6 @@ private:
 
     void CarriageReturn();
     void LineFeed();
-    void Tab();
     void Slash();
 
     void UpdatePosition()
@@ -205,11 +203,6 @@ void Lexer::LineFeed() {
     CurrentColumn = 1;
     CurrentLine++;
     PosBuffer++;
-}
-
-void Lexer::Tab() {
-    // FIX
-    UpdatePosition();
 }
 
 void Lexer::CarriageReturn() {
