@@ -140,7 +140,7 @@ private:
     Node* parseInitializerList();
     Node* parseInitializerListBody();
 
-    Node* ParseCondition();
+    Node* ParseConditionConstruct();
     Node* parseIf();
     Node* parseIfCondition();
     Node* parseIfBody();
@@ -304,7 +304,7 @@ Node* Parser::parseInitializerListBody() {
     return new NodeInitializerList(InitElements);
 }
 
-Node* Parser::ParseCondition() {
+Node* Parser::ParseConditionConstruct() {
     Node* ifCondition = parseIf();
     Node* elseCondition = nullptr;
     if (stream.peek().type == TokenKind::Else)
@@ -316,7 +316,6 @@ Node* Parser::parseIf() {
     stream.consume(TokenKind::If);
     Node* Condition = parseIfCondition();
     Node* Body = parseIfBody();
-    parseToken(TokenKind::Semicolon, "", true);
     return new NodeIf(Condition, Body);
 }
 
@@ -336,7 +335,7 @@ Node* Parser::parseIfBody() {
 
     NodeBlock* block = new NodeBlock();
     Node* stmt = (stream.peek().type == TokenKind::If)
-        ? ParseCondition()
+        ? ParseConditionConstruct()
         : parseStatement(typescope::sc_function);
     if (stmt) block->add(stmt);
     return block;
@@ -627,7 +626,9 @@ Node* Parser::parseStatement(int type_scope) {
             {
                 stream.restorePosition(savedPos);
                 delete type;
-                return parseDeclaration();
+                Node* Declaration = parseDeclaration();
+                parseToken(TokenKind::Semicolon, "Expected ';' after expression");
+                return Declaration;
             }
             break;
         }
@@ -643,10 +644,9 @@ Node* Parser::parseStatement(int type_scope) {
             {
                 stream.restorePosition(savedPos);
                 delete type;
-                Node* CallName = parseIdentifier();
-                CallName = parseNodeCall(CallName);
+                Node* Expression = parseIdentifierExpression();
                 parseToken(TokenKind::Semicolon, "Expected ';' after expression");
-                return CallName;
+                return Expression;
             }
             break;
         }
@@ -660,11 +660,9 @@ Node* Parser::parseStatement(int type_scope) {
     stream.restorePosition(savedPos);
     if (stream.peek().type == TokenKind::IdentifierLiteral) {
 
-        Node* CallName = parseIdentifier();
-        if (stream.peek().type == TokenKind::LeftParen)
-            CallName = parseNodeCall(CallName);
+        Node* Expression = parseIdentifierExpression();
         parseToken(TokenKind::Semicolon, "Expected ';' after expression");
-        return CallName;
+        return Expression;
     }
 
     raise("Unrecognized statement");
@@ -751,7 +749,7 @@ Node* Parser::parseFunctionBlock()
     while (!isAtEnd() && stream.peek().type != TokenKind::RightBrace) {
         Node* stmt = nullptr;
         switch (stream.peek().type) {
-        case TokenKind::If:     stmt = parseIf(); break;
+        case TokenKind::If:     stmt = ParseConditionConstruct(); break;
         case TokenKind::While:  stmt = parseWhile(); break;
         case TokenKind::Return: stmt = parseReturn(); break;
         default: stmt = parseStatement(typescope::sc_function); break;

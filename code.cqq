@@ -37,11 +37,50 @@ class CompilationContext
     // Объявление функции
     int* getSymbolAddress();
     // Объявление функции с телом
-    int generateCode() { int addr; return addr; }
+    int generateCode();
+}
+
+int CompilationContext::generateCode()
+{
+    int addr = labelCount * 16 + localVars + paramCount - returnSlot;
+    stackFrameOffsets.push(addr);
+    pendingOffsets.push(depth + liveTemps);
+
+    if (inlineBudget > 0)
+    {
+        inlineBudget = inlineBudget - 1;
+        activeLabels = activeLabels + 1;
+    }
+    else
+    {
+        deadCode = deadCode + 1;
+    }
+
+    return addr;
 }
 
 int main()
 {
-    func();
-    int a = func()->f.s(4)->a;
+    CompilationContext ctx = CompilationContext();
+    int address = ctx.generateCode();
+    std::print(address);
+
+    if (address == BAD_ALLOC)
+    {
+        int retries = 0;
+        while (retries < 3)
+        {
+            address = ctx.generateCode();
+            retries = retries + 1;
+        }
+    }
+    else
+    {
+        ctx.generateCode();
+        ctx.generateCode();
+        std::print(ctx.getDeadCode());
+        std::print(ctx.getInlineBudget());
+        std::print(ctx.getStackSize());
+    }
+    return 0;
 }
