@@ -8,14 +8,6 @@
 #include <vector>
 #include <unordered_map>
 
-using Callback = void(*)(std::string);
-Callback LexError;
-
-#define DEF_GENERATION_BASE(X) \
-Token Token{ TokenKind::##X, std::string(1, tok::constexprToChar(TokenKind::##X)), CurrentLine, CurrentColumn}; \
-BufferToken.push_back(Token); \
-UpdatePosition(); \
-
 class Lexer {
 private:
     using LexEnginePtr = void (Lexer::*)();
@@ -27,42 +19,16 @@ private:
 
     void LexNumericConstant();
     bool isPreprocessingNumberBody(char C) const;
-    const char* consumeChar(const char* ptr, unsigned size);
+    void AddToken(char C);
+    char GetChar() const;
 
 private:
 
-    std::unordered_map<char, LexEnginePtr> map{ {
-    {' ', &Lexer::Space},
-    {'"', &Lexer::Quotation},
-    {'#', &Lexer::Hash},
-    {'$', &Lexer::Dollar},
-    {'%', &Lexer::Percent},
-    {'&', &Lexer::Ampersand},
-    {'(', &Lexer::LeftParen},
-    {')', &Lexer::RightParen},
-    {'{', &Lexer::LeftBrace},
-    {'}', &Lexer::RightBrace},
-    {'[', &Lexer::LeftBracket},
-    {']', &Lexer::RightBracket},
-    {'+', &Lexer::Plus},
-    {',', &Lexer::Comma},
-    {'-', &Lexer::Minus},
-    {':', &Lexer::Colon},
-    {';', &Lexer::Semicolon},
-    {'<', &Lexer::Less},
-    {'=', &Lexer::Equal},
-    {'>', &Lexer::Greater},
-    {'@', &Lexer::At},
-    {'\\', &Lexer::Backslash},
-    {'^', &Lexer::Caret},
-    {'`', &Lexer::Backtick},
-    {'|', &Lexer::Pipe},
-
-    {'\n', &Lexer::LineFeed},
-    {'\r', &Lexer::CarriageReturn},
-    {'*', &Lexer::Asterisk},
-    {'\'', &Lexer::Apostrophe},
+    const std::unordered_map<char, LexEnginePtr> map{ {
+    {'\n',&Lexer::LineFeed},
+    {'\r',&Lexer::CarriageReturn},
     {'/', &Lexer::Slash},
+    {'\t',&Lexer::Tab},
 
     {'.', &Lexer::LexNumericConstant},
     {'0', &Lexer::LexNumericConstant},
@@ -75,46 +41,11 @@ private:
     {'7', &Lexer::LexNumericConstant},
     {'8', &Lexer::LexNumericConstant},
     {'9', &Lexer::LexNumericConstant},
-
     }};
-
-
-    void Space() { DEF_GENERATION_BASE(Space);};
-
-    void Hash() { DEF_GENERATION_BASE(Hash); };
-    void Dollar() { DEF_GENERATION_BASE(Dollar); };
-    void Percent() { DEF_GENERATION_BASE(Percent); };
-    void Ampersand() { DEF_GENERATION_BASE(Ampersand); };
-
-    void RightParen() { DEF_GENERATION_BASE(RightParen); };
-    void LeftParen() { DEF_GENERATION_BASE(LeftParen); };
-
-    void RightBrace() { DEF_GENERATION_BASE(RightBrace); };
-    void LeftBrace() { DEF_GENERATION_BASE(LeftBrace); };
-
-    void LeftBracket() { DEF_GENERATION_BASE(LeftBracket); };
-    void RightBracket() { DEF_GENERATION_BASE(RightBracket); };
-
-    void Plus() { DEF_GENERATION_BASE(Plus); };
-    void Comma() { DEF_GENERATION_BASE(Comma); };
-    void Minus() { DEF_GENERATION_BASE(Minus); };
-    void Colon() { DEF_GENERATION_BASE(Colon); };
-    void Semicolon() { DEF_GENERATION_BASE(Semicolon); };
-    void Less() { DEF_GENERATION_BASE(Less); };
-    void Equal() { DEF_GENERATION_BASE(Equal); };
-    void Greater() { DEF_GENERATION_BASE(Greater); };
-    void At() { DEF_GENERATION_BASE(At); };
-    void Backslash() { DEF_GENERATION_BASE(Backslash); };
-    void Caret() { DEF_GENERATION_BASE(Caret); };
-    void Backtick() { DEF_GENERATION_BASE(Backtick); };
-    void Pipe() { DEF_GENERATION_BASE(Pipe); };
-    void Tilde() { DEF_GENERATION_BASE(Tilde); };
-    void Asterisk() { DEF_GENERATION_BASE(Asterisk); };
-    void Apostrophe() { DEF_GENERATION_BASE(Apostrophe); };
-    void Quotation() { DEF_GENERATION_BASE(Quotation);};
 
     void CarriageReturn();
     void LineFeed();
+    void Tab();
     void Slash();
 
     void UpdatePosition()
@@ -124,18 +55,16 @@ private:
     }
 
     bool neof() {
-        return PosBuffer < SourceCode.size();
+        return PosBuffer < Source.size();
     }
-
-    char GetChar() const;
 
     void LexerRun();
 
-    std::string SourceCode = "";
+    std::string Source = "";
     std::vector<Token> BufferToken;
 public:
-     Lexer(const std::string source) {
-        SourceCode = source;
+    Lexer(const std::string& source) : Source(source) 
+    {
         LexerRun();
     };
 
@@ -148,19 +77,16 @@ void Lexer::LexerRun() {
     while (neof()) {
         char currentChar = GetChar();
 
-        if (auto it = map.find(currentChar); it != map.end()) {
-            (this->*it->second)();
-        }
-        else
+        // Обработка идентификаторов
+        if (tok::is_unicode_identifier_start(GetChar()))
         {
-            // Обработка идентификаторов
             size_t start = PosBuffer;
             while (neof() && (tok::is_unicode_identifier_start(GetChar()) || isdigit(GetChar())))
                 PosBuffer++;
 
             // sizeof(identifier)
             size_t CurrentSize = PosBuffer - start;
-            std::string identifier = SourceCode.substr(start, CurrentSize);
+            std::string identifier = Source.substr(start, CurrentSize);
 
             Token Token
             {
@@ -170,7 +96,16 @@ void Lexer::LexerRun() {
 
             CurrentColumn += CurrentSize;
             BufferToken.push_back(Token);
+            continue;
         }
+
+        if (auto it = map.find(currentChar); it != map.end()) {
+            (this->*it->second)();
+            continue;
+        }
+
+        AddToken(currentChar);
+        UpdatePosition();
     }
 }
 
@@ -178,18 +113,26 @@ bool Lexer::isPreprocessingNumberBody(char C) const {
     return isalnum(C) || C == '.' || C == '_' || C == '$';
 }
 
-const char* Lexer::consumeChar(const char* ptr, unsigned size) {
-    PosBuffer += size;
-    return ptr + size;
+char Lexer::GetChar() const {
+    return Source[PosBuffer];
+}
+
+void Lexer::AddToken(char C) {
+    Token Token{
+    tok::constexprToTTokenID(C),
+    std::to_string(C),
+    CurrentLine, CurrentColumn };
+    BufferToken.push_back(Token);
 }
 
 void Lexer::LexNumericConstant() {
     
-    char C = SourceCode[PosBuffer];
+    char C = GetChar();
 
-    if (C == '.' && PosBuffer + 1 < SourceCode.size() && !isdigit(SourceCode[PosBuffer + 1]))
+    if (C == '.' && PosBuffer + 1 < Source.size() && !isdigit(Source[PosBuffer + 1]))
     {
-        DEF_GENERATION_BASE(Dot);
+        AddToken('.');
+        UpdatePosition();
         return;
     }
 
@@ -207,20 +150,20 @@ void Lexer::LexNumericConstant() {
         PrevCh = C;
         numericValue += C;
         UpdatePosition();
-        C = SourceCode[PosBuffer];
+        C = GetChar();
     }
 
     // Обработка экспоненты: 1e+12, 1e-12
     if ((C == '-' || C == '+') && (PrevCh == 'E' || PrevCh == 'e')) {
         numericValue += C;
         UpdatePosition();
-        C = SourceCode[PosBuffer];
+        C = GetChar();
 
         // Продолжаем сбор
         while (isPreprocessingNumberBody(C)) {
             numericValue += C;
             UpdatePosition();
-            C = SourceCode[PosBuffer];
+            C = GetChar();
         }
     }
 
@@ -228,27 +171,27 @@ void Lexer::LexNumericConstant() {
     if ((C == '-' || C == '+') && (PrevCh == 'P' || PrevCh == 'p')) {
         numericValue += C;
         UpdatePosition();
-        C = SourceCode[PosBuffer];
+        C = GetChar();
 
         while (isPreprocessingNumberBody(C)) {
             numericValue += C;
             UpdatePosition();
-            C = SourceCode[PosBuffer];
+            C = GetChar();
         }
     }
 
     // Обработка разделителей разрядов: 1'000'000
-    if (C == '\'' && PosBuffer + 1 < SourceCode.size()) {
-        char Next = SourceCode[PosBuffer + 1];
+    if (C == '\'' && PosBuffer + 1 < Source.size()) {
+        char Next = Source[PosBuffer + 1];
         if (isalnum(Next) || Next == '_') {
             numericValue += C;
             UpdatePosition();
-            C = SourceCode[PosBuffer];
+            C = GetChar();
 
             while (isPreprocessingNumberBody(C)) {
                 numericValue += C;
                 UpdatePosition();
-                C = SourceCode[PosBuffer];
+                C = GetChar();
             }
         }
     }
@@ -257,32 +200,33 @@ void Lexer::LexNumericConstant() {
     BufferToken.push_back(token);
 }
 
-char Lexer::GetChar() const {
-    return SourceCode[PosBuffer];
-}
-
 void Lexer::LineFeed() {
-    Token Token{ TokenKind::LineFeed, std::string(1, tok::constexprToChar(TokenKind::LineFeed)), CurrentLine, CurrentColumn };
-    BufferToken.push_back(Token);
+    AddToken('\n');
     CurrentColumn = 1;
     CurrentLine++;
     PosBuffer++;
 }
 
+void Lexer::Tab() {
+    // FIX
+    UpdatePosition();
+}
+
 void Lexer::CarriageReturn() {
     // Если после `\r` идёт `\n` (Windows: `\r\n`), пропускаем `\n`
-    if (PosBuffer + 1 < SourceCode.size() && SourceCode[PosBuffer + 1] == '\n') {
+    if (PosBuffer + 1 < Source.size() && Source[PosBuffer + 1] == '\n') {
         PosBuffer++;
         LineFeed();  // Пропускаем `\n`, чтобы не дублировать LineFeed
     }
     else
     {
-        DEF_GENERATION_BASE(CarriageReturn);
+        AddToken('\r');
+        UpdatePosition();
     }
 }
 
 void Lexer::Slash() {
-    if (PosBuffer + 1 < SourceCode.size() && (SourceCode[PosBuffer + 1] == '/' || SourceCode[PosBuffer + 1] == '*'))
+    if (PosBuffer + 1 < Source.size() && (Source[PosBuffer + 1] == '/' || Source[PosBuffer + 1] == '*'))
     {
         UpdatePosition();
         char _getchar = GetChar();
@@ -308,7 +252,8 @@ void Lexer::Slash() {
     }
     else
     {
-        DEF_GENERATION_BASE(Slash);
+        AddToken('/');
+        UpdatePosition();
     }
 }
 #endif // LEXER_HPP
