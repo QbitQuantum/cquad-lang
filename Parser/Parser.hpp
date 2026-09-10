@@ -221,37 +221,29 @@ Node* Parser::parseTopLevel()
 }
 
 Node* Parser::parseIdentifier(int _typeexpression) {
-    std::string Identifier = "";
-    std::vector<std::string> Scope;
-    Node* IdentifierTemplateParameterInstantiationList = nullptr;
+    if (stream.peek().type != TokenKind::IdentifierLiteral)
+        raise("Expected identifier");
 
-    while (true) {
-        switch (stream.peek().type) {
-        case TokenKind::IdentifierLiteral:
-            if (Identifier.empty())
-            {
-                Identifier = stream.consume(TokenKind::IdentifierLiteral).value;
-            }
-            else
-            {
-                return new NodeIdentifier(IdentifierTemplateParameterInstantiationList, Identifier, new NodeScope(Scope));
-            }
-            break;
-        case TokenKind::ScResOp:
-            stream.consume(TokenKind::ScResOp);
-            if (stream.peek().type != TokenKind::IdentifierLiteral)
-                raise("Expected identifier after '::\'");
-            Scope.push_back(Identifier);
-            Identifier = "";
-            break;
-        case TokenKind::Less:
-            if (_typeexpression != typeexpression::sc_condition)
-                IdentifierTemplateParameterInstantiationList = parseTemplateParameterInstantiationList();
-            return new NodeIdentifier(IdentifierTemplateParameterInstantiationList, Identifier, new NodeScope(Scope));
-        default:
-            return new NodeIdentifier(IdentifierTemplateParameterInstantiationList, Identifier, new NodeScope(Scope));
-        }
+    std::string Identifier = stream.consume(TokenKind::IdentifierLiteral).value;
+    std::vector<std::string> Scope;
+
+    while (stream.peek().type == TokenKind::ScResOp) {
+        stream.consume(TokenKind::ScResOp);
+
+        if (stream.peek().type != TokenKind::IdentifierLiteral)
+            raise("Expected identifier after '::'");
+
+        Scope.push_back(std::move(Identifier));
+        Identifier = stream.consume(TokenKind::IdentifierLiteral).value;
     }
+
+    Node* TemplateArgs = nullptr;
+    if (stream.peek().type == TokenKind::Less &&
+        _typeexpression != typeexpression::sc_condition) {
+        TemplateArgs = parseTemplateParameterInstantiationList();
+    }
+
+    return new NodeIdentifier(TemplateArgs, Identifier, new NodeScope(std::move(Scope)));
 }
 
 Node* Parser::parseIdentifierExpression(int _typeexpression) {
