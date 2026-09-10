@@ -98,14 +98,21 @@ class Parser
 private:
     TokenStream stream;
     std::vector<Node*> ast;
+    std::vector<Token> ParserEngineBuffer;
 
     bool isAtEnd() const { return stream.eof(); }
-
     TokenKind currentTokenKind() const { return stream.peek().type; }
-
     void advance() { stream.consume(stream.peek().type); }
-
     void skipTrivia() { stream.skipTrivia(); }
+
+    void raise(const std::string& msg) {
+        auto token = stream.peek();
+        throw ParseError::ParseError(token.line, token.column, msg);
+    }
+
+    void parseToken(TokenKind kind, const std::string& msg, bool soft = false) {
+        if (!stream.match(kind)) if (!soft) raise(msg);
+    }
 
     Node* parseTopLevel();
 
@@ -170,7 +177,6 @@ private:
     Node* parseType();
 
 public:
-    std::vector<Token> ParserEngineBuffer;
 
     Parser(const PostLexer& advance) :
         ParserEngineBuffer(advance.GetBufferPostLexerToken()),
@@ -187,15 +193,6 @@ public:
         for (auto& i : ast)
             if (i) delete i;
     };
-
-    void raise(const std::string& msg) {
-        auto token = stream.peek();
-        throw ParseError::ParseError(token.line, token.column, msg);
-    }
-
-    void parseToken(TokenKind kind, const std::string& msg, bool soft = false) {
-        if (!stream.match(kind)) if (!soft) raise(msg);
-    }
 
     void Parse() {
         while (!isAtEnd()) {
