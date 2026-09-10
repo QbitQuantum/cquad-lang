@@ -486,32 +486,42 @@ public:
 
 class NodeNew : public Node
 {
-    Node* Call = nullptr;
+    Node* Expression = nullptr;
+    Node* SizeArgCArray = nullptr;
 public:
-    NodeNew(Node* call) : Call(call) {
+    NodeNew(Node* expression, Node* sizeArgCArray) : 
+        Expression(expression), SizeArgCArray(sizeArgCArray) {
     };
 
     std::string print() override {
-        std::string fprint = "new " + (Call ? Call->print() : "");
-        return fprint;
+        if (!Expression) return "";
+        return "new " + (SizeArgCArray ? "[" + SizeArgCArray->print() + "] " : " ") + Expression->print();
     };
 
     ~NodeNew() {
-        delete Call;
+        delete Expression;
+        delete SizeArgCArray;
     };
 };
 
 class NodeDelete : public Node
 {
+    Node* Expression = nullptr;
+    Node* SizeArgCArray = nullptr;
 public:
-    NodeDelete() {};
-
-    std::string print() override {
-        std::string fprint = "delete";
-        return fprint;
+    NodeDelete(Node* expression, Node* sizeArgCArray) :
+        Expression(expression), SizeArgCArray(sizeArgCArray) {
     };
 
-    ~NodeDelete() {};
+    std::string print() override {
+        if (!Expression) return "";
+        return "delete " + (SizeArgCArray ? "[" + SizeArgCArray->print() + "] " : " ") + Expression->print();
+    };
+
+    ~NodeDelete() {
+        delete Expression;
+        delete SizeArgCArray;
+    };
 };
 
 class NodeCall : public Node

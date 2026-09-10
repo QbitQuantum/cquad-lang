@@ -388,12 +388,21 @@ Node* Parser::parseReturn() {
 
 Node* Parser::parseNew() {
     stream.consume(TokenKind::New);
-    return new NodeNew(parseIdentifier());
+    Node* SizeArgCArray = nullptr;
+    if (stream.peek().type == TokenKind::LeftBracket)
+        SizeArgCArray = parseSizeArgCArray();
+    Node* Expression = parseIdentifierExpression();
+    return new NodeNew(Expression, SizeArgCArray);
 }
 
 Node* Parser::parseDelete() {
     stream.consume(TokenKind::Delete_);
-    return new NodeDelete();
+    Node* SizeArgCArray = nullptr;
+    if (stream.peek().type == TokenKind::LeftBracket)
+        SizeArgCArray = parseSizeArgCArray();
+    Node* Expression = parseIdentifierExpression();
+    parseToken(TokenKind::Semicolon, "Expected ';' after delete statement");
+    return new NodeDelete(Expression, SizeArgCArray);
 }
 
 Node* Parser::parseNullptr() {
@@ -446,17 +455,20 @@ Node* Parser::parseNodeCall(Node* CallName) {
 }
 
 Node* Parser::parseSizeArgCArray() {
+    parseToken(TokenKind::LeftBracket, "Expected '[' for CArray");
+    Node* stmt = nullptr;
     switch (stream.peek().type) {
     case TokenKind::IdentifierLiteral:
-        return parseIdentifier();
+        stmt = parseIdentifier(); break;
     case TokenKind::IntegerLiteral:
     case TokenKind::HexLiteral:
     case TokenKind::BinaryLiteral:
-        return parseNodeInteger();
+        stmt = parseNodeInteger(); break;
     default:
         raise("Not correct token for array size");
     }
-    return nullptr;
+    parseToken(TokenKind::RightBracket, "Expected ']' for CArray");
+    return stmt;
 }
 
 Node* Parser::parseType() {
@@ -477,12 +489,8 @@ Node* Parser::parseType() {
 
         Type = parseIdentifier();
 
-        if (stream.match(TokenKind::LeftBracket))
-        {
+        if (stream.peek().type == TokenKind::LeftBracket)
             SizeArgCArray = parseSizeArgCArray();
-            if (!stream.match(TokenKind::RightBracket))
-                raise("Expected RightBracket token");
-        }
 
         switch (stream.peek().type)
         {
@@ -744,6 +752,7 @@ Node* Parser::parseFunctionBlock()
         case TokenKind::If:     stmt = ParseConditionConstruct(); break;
         case TokenKind::While:  stmt = parseWhile(); break;
         case TokenKind::Return: stmt = parseReturn(); break;
+        case TokenKind::Delete_: stmt = parseDelete(); break;
         default: stmt = parseStatement(typescope::sc_function); break;
         }
         if (stmt) block->add(stmt);

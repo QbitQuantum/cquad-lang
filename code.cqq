@@ -61,8 +61,8 @@ int CompilationContext::generateCode()
 
 int main()
 {
-    CompilationContext ctx = CompilationContext();
-    int address = ctx.generateCode();
+    CompilationContext* ctx = new CompilationContext();
+    int address = ctx->generateCode();
     std::print(address);
 
     if (address == BAD_ALLOC)
@@ -70,17 +70,18 @@ int main()
         int retries = 0;
         while (retries < 3)
         {
-            address = ctx.generateCode();
+            address = ctx->generateCode();
             retries = retries + 1;
         }
     }
     else
     {
-        ctx.generateCode();
-        ctx.generateCode();
-        std::print(ctx.getDeadCode());
-        std::print(ctx.getInlineBudget());
-        std::print(ctx.getStackSize());
+        ctx->generateCode();
+        ctx->generateCode();
+        std::print(ctx->getDeadCode());
+        std::print(ctx->getInlineBudget());
+        std::print(ctx->getStackSize());
     }
+    delete ctx;
     return 0;
 }
