@@ -1,4 +1,5 @@
 
+
 class CompilationContext
 {
     int labelCount = 10;
@@ -11,17 +12,36 @@ class CompilationContext
     IRInstruction* pPrevInst, pNextInst = nullptr, pJumpTarget;
 
     // Смешанные (с инициализацией)
-    int localVars = 10, paramCount = 20, returnSlot;
+    int localVars = 10, paramCount = {20}, returnSlot {5};
+    int basicBlockCount = {10};
+
+    int defaultInt;
+    IRInstruction* defaultPtr;
+
+    int copyInt = 42;
+    IRInstruction* copyPtr = nullptr;
+    double copyDouble = 3.14;
+
+    IRInstruction* activeBlock{};
+    std::vector<int> pendingOffsets{};
+
+    int defaultAlignment{7};
+    std::vector<int> registerLayout{1, 2, 3};
+
+    int spillThreshold = {8};
+    std::vector<int> savedRegisters = {4, 5, 6};
+
+    // Комбинация в одной строке
+    int depth = 1, liveTemps{}, activeLabels{2}, inlineBudget = {3}, deadCode;
 
     // Объявление функции
     int* getSymbolAddress();
     // Объявление функции с телом
-    int* generateCode() { int addr; return addr; };
-
+    int generateCode() { int addr; return addr; }
 }
 
 int main()
 {
     func();
     int a = func()->f.s(4)->a;
-};
+}

@@ -3,6 +3,7 @@
 #pragma once
 
 #include <vector>
+#include <string>
 #include <iostream>
 #include <memory>
 #include "PostLexer.hpp"
@@ -24,6 +25,15 @@ namespace typeexpression
     const int sc_expression = 1;
 }
 
+namespace typeinitialization
+{
+    const int i_unknown = -1;
+    const int i_default = 0; // int x;
+    const int i_value = 1; // int x{};
+    const int i_copy = 2; // int x = 5;
+    const int i_direct_list = 3; // int x{5};
+    const int i_copy_list = 4; // int x = {5};
+}
 class TokenStream
 {
     std::vector<Token> Buffer;
@@ -127,6 +137,8 @@ private:
 
     Node* parsePrimary();
     Node* parseExpression(int priority = 0, int typeexpression = typeexpression::sc_expression);
+    Node* parseInitializerList();
+    Node* parseInitializerListBody();
 
     Node* ParseCondition();
     Node* parseIf();
@@ -228,7 +240,7 @@ Node* Parser::parseIdentifier(int _typeexpression) {
         case TokenKind::ScResOp:
             stream.consume(TokenKind::ScResOp);
             if (stream.peek().type != TokenKind::IdentifierLiteral)
-                raise("Expected identifier after '::'");
+                raise("Expected identifier after '::\'");
             Scope.push_back(Identifier);
             Identifier = "";
             break;
@@ -269,6 +281,27 @@ Node* Parser::parseExpression(int MinPrec, int _typeexpression) {
         Left = new NodeBinaryOp(BinOparand::getBinaryOperand(op), Left, Right);
     }
     return Left;
+}
+
+Node* Parser::parseInitializerList() {
+    parseToken(TokenKind::LeftBrace, "Expected '{' for initializer list");
+    Node* body = parseInitializerListBody();
+    parseToken(TokenKind::RightBrace, "Expected '}' after initializer list");
+    return body;
+}
+
+Node* Parser::parseInitializerListBody() {
+    std::vector<Node*> InitElements;
+    if (stream.peek().type != TokenKind::RightBrace)
+    {
+        InitElements.push_back(parseExpression());
+        while (stream.peek().type == TokenKind::Comma) {
+            stream.consume(TokenKind::Comma);
+            if (stream.peek().type == TokenKind::RightBrace) break;
+            InitElements.push_back(parseExpression());
+        }
+    }
+    return new NodeInitializerList(InitElements);
 }
 
 Node* Parser::ParseCondition() {
@@ -403,7 +436,7 @@ Node* Parser::parseNodeCharacter() {
 }
 
 Node* Parser::parseNodeCall(Node* CallName) {
-    
+
     parseToken(TokenKind::LeftParen, "Expected '(' after Identifier");
 
     std::vector<Node*> ArgumentConcreticList;
@@ -520,6 +553,8 @@ Node* Parser::parsePrimary() {
     case TokenKind::CharLiteral:
     case TokenKind::WCharLiteral:
         Right = parseNodeCharacter(); break;
+    case TokenKind::LeftBrace:
+        Right = parseInitializerList(); break;
     case TokenKind::LeftParen:
     {
         stream.consume(TokenKind::LeftParen);
@@ -553,55 +588,87 @@ Node* Parser::parseTemplateParameterInstantiationList() {
 }
 
 Node* Parser::parseStatement(int type_scope) {
-    Node* Statement = nullptr;
     size_t savedPos = stream.savePosition();
 
-    Node* type = parseType();
-
-    switch (stream.peek().type)
-    {
-    case TokenKind::IdentifierLiteral:
-    {
-        Node* name = parseIdentifier();
-        if (stream.peek().type == TokenKind::LeftParen) {
-            stream.restorePosition(savedPos);
-            Statement = parseFunction();
-        }
-        else
-        {
-            stream.restorePosition(savedPos);
-            Statement = parseVar();
-        }
-        delete name;
-        break;
+    Node* type = nullptr;
+    bool typeParsed = false;
+    try {
+        type = parseType();
+        typeParsed = true;
     }
-    case TokenKind::Equal:
-    {
-        if (type_scope == typescope::sc_function)
-        {
-            stream.restorePosition(savedPos);
-            Statement = parseDeclaration();
-        }
-        break;
-    }
-    case TokenKind::LeftParen:
-    {
-        if (type_scope == typescope::sc_function)
-        {
-            stream.restorePosition(savedPos);
-            Node* CallName = parseIdentifier();
-            Statement = parseNodeCall(CallName);
-        }
-        break;
-    }
-    default:
-        raise("Expected '=' or ';' after variable name");
-        break;
+    catch (...) {
+        stream.restorePosition(savedPos);
+        typeParsed = false;
     }
 
-    stream.consume(TokenKind::Semicolon);
+    if (typeParsed && type) {
+        switch (stream.peek().type)
+        {
+        case TokenKind::IdentifierLiteral:
+        {
+            size_t afterType = stream.savePosition();
+            Node* name = parseIdentifier();
+            TokenKind next = stream.peek().type;
+            delete name;
 
-    return Statement;
+            if (next == TokenKind::LeftParen) {
+                stream.restorePosition(savedPos);
+                delete type;
+                return parseFunction();
+            }
+
+            stream.restorePosition(savedPos);
+            delete type;
+            return parseVar();
+        }
+        case TokenKind::Equal:
+        {
+            if (type_scope == typescope::sc_function)
+            {
+                stream.restorePosition(savedPos);
+                delete type;
+                return parseDeclaration();
+            }
+            break;
+        }
+        case TokenKind::LeftBrace:
+        {
+            stream.restorePosition(savedPos);
+            delete type;
+            return parseVar();
+        }
+        case TokenKind::LeftParen:
+        {
+            if (type_scope == typescope::sc_function)
+            {
+                stream.restorePosition(savedPos);
+                delete type;
+                Node* CallName = parseIdentifier();
+                CallName = parseNodeCall(CallName);
+                parseToken(TokenKind::Semicolon, "Expected ';' after expression");
+                return CallName;
+            }
+            break;
+        }
+        default:
+            break;
+        }
+
+        delete type;
+    }
+
+    stream.restorePosition(savedPos);
+    if (stream.peek().type == TokenKind::IdentifierLiteral) {
+
+        Node* CallName = parseIdentifier();
+        if (stream.peek().type == TokenKind::LeftParen)
+            CallName = parseNodeCall(CallName);
+        parseToken(TokenKind::Semicolon, "Expected ';' after expression");
+        return CallName;
+    }
+
+    raise("Unrecognized statement");
+    return nullptr;
 }
 
 Node* Parser::parseFunction() {
@@ -646,11 +713,20 @@ Node* Parser::parseFunctionParameter()
     }
 
     Node* defaultValue = nullptr;
+    int initKind = typeinitialization::i_unknown;
+
     if (stream.match(TokenKind::Equal)) {
-        defaultValue = parseExpression();
+        if (stream.peek().type == TokenKind::LeftBrace) {
+            initKind = typeinitialization::i_copy_list;
+            defaultValue = parseInitializerList();
+        }
+        else {
+            initKind = typeinitialization::i_copy;
+            defaultValue = parseExpression();
+        }
     }
 
-    return new NodeVarDeclarationList(type, name, defaultValue);
+    return new NodeDeclaration(name, defaultValue, initKind);
 }
 
 Node* Parser::parseFunctionBody() {
@@ -701,7 +777,7 @@ Node* Parser::parseDeclaration() {
         Expression = parseExpression();
     }
 
-    return new NodeDeclaration(Identifier, Expression);
+    return new NodeDeclaration(Identifier, Expression, typeinitialization::i_copy);
 }
 
 Node* Parser::parseDeclarationPrimary() {
@@ -719,14 +795,14 @@ Node* Parser::parseDeclarationPrimary() {
         Expression = parsePrimary();
     }
 
-    return new NodeDeclaration(Identifier, Expression);
+    return new NodeDeclaration(Identifier, Expression, typeinitialization::i_copy);
 }
 
 Node* Parser::parseVar() {
     Node* VarTemplateParameterDeclarationList = nullptr;
     Node* VarType = parseVarType();
     Node* VarDeclarationList = parseVarDeclarationList();
-    stream.consume(TokenKind::Semicolon);
+    parseToken(TokenKind::Semicolon, "Expected ';' after declaration");
     return new NodeVarDeclarationList(VarTemplateParameterDeclarationList, VarType, VarDeclarationList);
 }
 
@@ -735,15 +811,47 @@ Node* Parser::parseVarType() {
 }
 
 Node* Parser::parseVarDeclaration() {
-    return parseDeclaration();
+    if (stream.peek().type != TokenKind::IdentifierLiteral)
+        raise("Expected identifier in declaration");
+
+    Node* name = parseIdentifier();
+
+    int initKind = typeinitialization::i_unknown;
+    Node* init = nullptr;
+
+    if (stream.match(TokenKind::Equal)) {
+        if (stream.peek().type == TokenKind::LeftBrace) {
+            initKind = typeinitialization::i_copy_list;
+            init = parseInitializerList();
+        }
+        else {
+            initKind = typeinitialization::i_copy;
+            init = parseExpression();
+        }
+    }
+    else if (stream.match(TokenKind::LeftBrace)) {
+        if (stream.peek().type == TokenKind::RightBrace) {
+            initKind = typeinitialization::i_value;
+        }
+        else {
+            initKind = typeinitialization::i_direct_list;
+        }
+        init = parseInitializerListBody();
+        parseToken(TokenKind::RightBrace, "Expected '}' after initializer list");
+    }
+    else {
+        initKind = typeinitialization::i_default;
+    }
+
+    return new NodeDeclaration(name, init, initKind);
 }
 
 Node* Parser::parseVarDeclarationList() {
     std::vector<Node*> ContainerDeclarationList;
-    ContainerDeclarationList.push_back(parseDeclaration());
+    ContainerDeclarationList.push_back(parseVarDeclaration());
     while (stream.peek().type == TokenKind::Comma) {
         stream.consume(TokenKind::Comma);
-        ContainerDeclarationList.push_back(parseDeclaration());
+        ContainerDeclarationList.push_back(parseVarDeclaration());
     }
     return new NodeDeclarationList(ContainerDeclarationList);
 }

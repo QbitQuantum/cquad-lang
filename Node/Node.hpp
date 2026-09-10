@@ -90,16 +90,36 @@ class NodeDeclaration : public Node
 {
     Node* Identifier = nullptr;
     Node* Initializer = nullptr;
+    int InitKind = -1;
 public:
     std::string print() override {
         if (!Identifier) return "";
         std::string fprint = Identifier->print();
-        if (Initializer)
-            fprint += " = " + Initializer->print();
+
+        switch (InitKind) {
+        case 0:  // i_default
+            break;
+        case 1:  // i_value
+            fprint += "{  }";
+            break;
+        case 2:  // i_copy
+            fprint += " = " + (Initializer ? Initializer->print() : "");
+            break;
+        case 3:  // i_direct_list
+            fprint += (Initializer ? Initializer->print() : "");
+            break;
+        case 4:  // i_copy_list
+            fprint += " = " + (Initializer ? Initializer->print() : "");
+            break;
+        default:
+            if (Initializer) fprint += " = " + Initializer->print();
+            break;
+        }
         return fprint;
-    };
-    NodeDeclaration(Node* identifier, Node* initializer) :
-        Identifier(identifier), Initializer(initializer) {
+    }
+
+    NodeDeclaration(Node* identifier, Node* initializer, int initKind = -1)
+        : Identifier(identifier), Initializer(initializer), InitKind(initKind) {
     };
 
     ~NodeDeclaration() override {
@@ -1059,6 +1079,39 @@ public:
     {
         delete Expression;
     }
+};
+
+class NodeInitializerList : public Node
+{
+    std::vector<Node*> Elements;
+
+public:
+    NodeInitializerList(const std::vector<Node*>& elements) :
+        Elements(elements) {
+    };
+
+    std::string print() override {
+        std::string fprint = "{ ";
+        int size = Elements.size();
+        for (size_t i = 0; i < size; i++) {
+            if (auto elem = Elements[i]; elem) {
+                fprint += elem->print();
+                if (i != size - 1) fprint += ", ";
+            }
+        }
+        fprint += " }";
+        return fprint;
+    };
+
+    const std::vector<Node*>& getElements() const {
+        return Elements;
+    }
+
+    ~NodeInitializerList() override {
+        for (auto& elem : Elements) {
+            delete elem;
+        }
+    };
 };
 
 #endif // NODE_HPP
