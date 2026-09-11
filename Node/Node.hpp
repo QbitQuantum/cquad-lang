@@ -11,7 +11,7 @@
 class Node
 {
 protected:
-    int NodeType = -1;
+    int DeclType = -1;
     Node() {};
 public:
     virtual std::string print() = 0;
