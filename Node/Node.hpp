@@ -64,7 +64,7 @@ public:
         Type(type), SizeArgCArray(sizeArgCArray), IsConst(isConst), eType(etype), IsAuto(isAuto) {};
 
     std::string print() override {
-        std::string fprint = "[";
+        std::string fprint = "";
         if (!IsAuto)
         {
             if (Type)
@@ -76,7 +76,6 @@ public:
         {
             fprint += "auto";
         }
-        fprint += "]";
         return fprint;
     };
 
@@ -157,7 +156,7 @@ class NodeVarDeclarationList : public Node
 public:
     std::string print() override {
         if (!Type) return "";
-        std::string fprint = "var";
+        std::string fprint = "";
         if (TemplateParameterDeclarationList) fprint += TemplateParameterDeclarationList->print();
         fprint += Type->print();
         if (DeclarationList)
