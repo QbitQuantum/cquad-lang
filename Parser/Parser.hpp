@@ -416,7 +416,7 @@ Node* Parser::parseType() {
     Node* type = nullptr;
     Node* size = nullptr;
     bool isConst = false;
-    NodeType::EType eType = NodeType::EType::NONE;
+    NodeType::EType eType = NodeType::EType::None;
 
     bool isAuto = match(TokenKind::Auto);
 
@@ -431,9 +431,9 @@ Node* Parser::parseType() {
         if (is(TokenKind::LeftBracket)) size = parseArraySize();
 
         switch (token()) {
-        case TokenKind::Asterisk:  consume(TokenKind::Asterisk);  eType = NodeType::EType::POINTER; break;
-        case TokenKind::Ampersand: consume(TokenKind::Ampersand); eType = NodeType::EType::REF;     break;
-        case TokenKind::And:       consume(TokenKind::And);       eType = NodeType::EType::RVALUE;  break;
+        case TokenKind::Asterisk:  consume(TokenKind::Asterisk);  eType = NodeType::EType::Pointer; break;
+        case TokenKind::Ampersand: consume(TokenKind::Ampersand); eType = NodeType::EType::Ref;     break;
+        case TokenKind::And:       consume(TokenKind::And);       eType = NodeType::EType::RValue;  break;
         default: break;
         }
     }
@@ -477,8 +477,6 @@ Node* Parser::parsePrimary() {
     }
     return unary == UnaryOperand::Unknown ? right : new NodeUnaryOp(unary, right);
 }
-
-// ---------- templates ----------
 
 Node* Parser::parseTemplateParam() {
     // template<typename C>
@@ -524,9 +522,9 @@ Node* Parser::parseTemplateParamList() {
 
 Node* Parser::wrapTemplate(Node* params, Node* decl) {
     switch (decl->DeclType) {
-    case Node::EDeclType::FUNCTION:             return new NodeFunctionTemplate(params, decl);
-    case Node::EDeclType::CLASS:                return new NodeClassTemplate(params, decl);
-    case Node::EDeclType::VAR_DECLARATION_LIST: return new NodeVarDeclarationListTemplate(params, decl);
+    case Node::EDeclType::Function:             return new NodeFunctionTemplate(params, decl);
+    case Node::EDeclType::Class:                return new NodeClassTemplate(params, decl);
+    case Node::EDeclType::VarDeclarationList:   return new NodeVarDeclarationListTemplate(params, decl);
     }
     expect(TokenKind::Greater, "Not template used: " + std::to_string(static_cast<int>(decl->DeclType)));
     return nullptr;
@@ -547,8 +545,6 @@ Node* Parser::parseTemplateArgList() {
     expect(TokenKind::Greater, "Expected Greater token");
     return new NodeTemplateParameterInstantiationList(args);
 }
-
-// ---------- statements ----------
 
 Node* Parser::parseStatement(int scope) {
     size_t saved = savePosition();
@@ -612,8 +608,6 @@ Node* Parser::parseStatement(int scope) {
     return nullptr;
 }
 
-// ---------- functions ----------
-
 Node* Parser::parseFunction() {
     Node* returnType = parseType();
 
@@ -624,7 +618,7 @@ Node* Parser::parseFunction() {
     Node* params = parseFunctionParams();
     Node* body = parseFunctionBody();
 
-    return new NodeFunction(returnType, nullptr, name, params, body);
+    return new NodeFunction(returnType, name, params, body);
 }
 
 Node* Parser::parseFunctionParams() {
@@ -685,8 +679,6 @@ Node* Parser::parseFunctionBlock() {
     return block;
 }
 
-// ---------- declarations ----------
-
 Node* Parser::parseDeclaration() {
     Node* name = is(TokenKind::IdentifierLiteral) ? parseIdentifier() : nullptr;
     Node* expr = nullptr;
@@ -710,11 +702,10 @@ Node* Parser::parseDeclarationPrimary() {
 }
 
 Node* Parser::parseVar() {
-    Node* tmpl = nullptr;
     Node* type = parseVarType();
     Node* list = parseVarDeclList();
     expect(TokenKind::Semicolon, "Expected ';' after declaration");
-    return new NodeVarDeclarationList(tmpl, type, list);
+    return new NodeVarDeclarationList(type, list);
 }
 
 Node* Parser::parseVarType() {
@@ -792,11 +783,11 @@ Node* Parser::parseClassBase() {
     if (!match(TokenKind::Colon)) return nullptr;
 
     using Inherit = NodeBaseClass::InheritanceType;
-    Inherit type = Inherit::NONE;
+    Inherit type = Inherit::None;
 
     switch (token()) {
-    case TokenKind::Public:  consume(TokenKind::Public);  type = Inherit::PUBLIC;  break;
-    case TokenKind::Private: consume(TokenKind::Private); type = Inherit::PRIVATE; break;
+    case TokenKind::Public:  consume(TokenKind::Public);  type = Inherit::Public;  break;
+    case TokenKind::Private: consume(TokenKind::Private); type = Inherit::Private; break;
     default: break;
     }
     Node* name = parseClassName();
@@ -807,14 +798,14 @@ Node* Parser::parseClassBlock() {
     using Field = NodeBlockClass::FieldType;
     std::vector<Node*> stmts;
     std::vector<std::pair<Field, std::vector<Node*>>> fields;
-    Field current = Field::NONE;
+    Field current = Field::None;
 
     auto toField = [](TokenKind k) -> Field {
         switch (k) {
-        case TokenKind::Private: return Field::PRIVATE;
-        case TokenKind::Public:  return Field::PUBLIC;
-        case TokenKind::Static:  return Field::STATIC;
-        default:                 return Field::NONE;
+        case TokenKind::Private: return Field::Private;
+        case TokenKind::Public:  return Field::Public;
+        case TokenKind::Static:  return Field::Static;
+        default:                 return Field::None;
         }
         };
 
@@ -825,7 +816,7 @@ Node* Parser::parseClassBlock() {
         case TokenKind::Public:
         case TokenKind::Static: {
             TokenKind scope = token();
-            if (!stmts.empty() || current != Field::NONE) {
+            if (!stmts.empty() || current != Field::None) {
                 fields.push_back({ current, stmts });
                 stmts.clear();
             }
@@ -840,7 +831,7 @@ Node* Parser::parseClassBlock() {
         if (stmt) stmts.push_back(stmt);
     }
 
-    if (!stmts.empty() || current != Field::NONE)
+    if (!stmts.empty() || current != Field::None)
         fields.push_back({ current, stmts });
 
     return new NodeBlockClass(fields);
