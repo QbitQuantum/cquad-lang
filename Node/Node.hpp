@@ -34,8 +34,6 @@ public:
         Delete,
         Call,
         Block,
-        TemplateParameterDeclarationList,
-        TemplateParameterInstantiationList,
         BlockClass,
         BaseClass,
         Class,
@@ -65,6 +63,7 @@ public:
         TemplateParameterList,
         TemplateTypeParam,
         TemplateValueParam,
+        TemplateParameterInstantiationList,
     };
 
     static std::string join(const std::vector<Node*>& nodes,
@@ -165,11 +164,11 @@ public:
         std::string out = Identifier->print();
 
         switch (InitKind) {
-        case 0: break;                                                            // Default
-        case 1: out += "{  }"; break;                                             // Value
-        case 2: out += " = " + (Initializer ? Initializer->print() : ""); break;  // Copy
-        case 3: out += (Initializer ? Initializer->print() : ""); break;          // DirectList
-        case 4: out += " = " + (Initializer ? Initializer->print() : ""); break;  // CopyList
+        case 0: break;
+        case 1: out += "{  }"; break;
+        case 2: out += " = " + (Initializer ? Initializer->print() : ""); break;
+        case 3: out += (Initializer ? Initializer->print() : ""); break;
+        case 4: out += " = " + (Initializer ? Initializer->print() : ""); break;
         default:
             if (Initializer) out += " = " + Initializer->print();
             break;
@@ -192,9 +191,7 @@ class NodeDeclarationList : public Node
 {
     std::vector<Node*> DeclarationList;
 public:
-    std::string print() override {
-        return Node::join(DeclarationList);
-    }
+    std::string print() override { return Node::join(DeclarationList); }
 
     NodeDeclarationList(const std::vector<Node*>& list)
         : Node(EDeclType::DeclarationList), DeclarationList(list) {
@@ -293,7 +290,6 @@ class NodeUsing : public Node
 {
     Node* Name = nullptr;
     Node* ScopeType = nullptr;
-    bool Simple = false;
 public:
     NodeUsing(Node* name, Node* scopeType)
         : Node(EDeclType::Using), Name(name), ScopeType(scopeType) {
@@ -581,24 +577,6 @@ public:
     }
 };
 
-class NodeTemplateParameterDeclarationList : public Node
-{
-    std::vector<Node*> Params;
-public:
-    NodeTemplateParameterDeclarationList(std::vector<Node*> params)
-        : Node(EDeclType::TemplateParameterDeclarationList),
-        Params(std::move(params)) {
-    }
-
-    std::string print() override {
-        return "<" + Node::join(Params) + ">";
-    }
-
-    ~NodeTemplateParameterDeclarationList() override {
-        for (auto* p : Params) delete p;
-    }
-};
-
 class NodeTemplateParameterInstantiationList : public Node
 {
     std::vector<Node*> Params;
@@ -690,25 +668,17 @@ public:
 class NodeClass : public Node
 {
     Node* Identifier = nullptr;
-    Node* TemplateParameterDeclarationList = nullptr;
     Node* BaseClass = nullptr;
     Node* Body = nullptr;
 public:
-    NodeClass(Node* identifier,
-        Node* templateParameterDeclarationList,
-        Node* baseClass,
-        Node* body)
+    NodeClass(Node* identifier, Node* baseClass, Node* body)
         : Node(EDeclType::Class),
-        Identifier(identifier),
-        TemplateParameterDeclarationList(templateParameterDeclarationList),
-        BaseClass(baseClass), Body(body) {
+        Identifier(identifier), BaseClass(baseClass), Body(body) {
     }
 
     std::string print() override {
         if (!Identifier) return "";
-        std::string out = "class";
-        if (TemplateParameterDeclarationList) out += TemplateParameterDeclarationList->print();
-        out += " " + Identifier->print();
+        std::string out = "class " + Identifier->print();
         if (BaseClass) out += " : " + BaseClass->print();
         if (Body) out += " " + Body->print();
         return out;
@@ -716,7 +686,6 @@ public:
 
     ~NodeClass() override {
         delete Identifier;
-        delete TemplateParameterDeclarationList;
         delete BaseClass;
         delete Body;
     }
@@ -782,28 +751,21 @@ public:
 class NodeStruct : public Node
 {
     Node* Identifier = nullptr;
-    Node* TemplateParameterDeclarationList = nullptr;
     Node* Body = nullptr;
 public:
-    NodeStruct(Node* identifier, Node* generics, Node* body)
-        : Node(EDeclType::Struct),
-        Identifier(identifier),
-        TemplateParameterDeclarationList(generics),
-        Body(body) {
+    NodeStruct(Node* identifier, Node* body)
+        : Node(EDeclType::Struct), Identifier(identifier), Body(body) {
     }
 
     std::string print() override {
         if (!Identifier) return "";
-        std::string out = "struct";
-        if (TemplateParameterDeclarationList) out += TemplateParameterDeclarationList->print();
-        out += " " + Identifier->print();
+        std::string out = "struct " + Identifier->print();
         if (Body) out += " " + Body->print();
         return out;
     }
 
     ~NodeStruct() override {
         delete Identifier;
-        delete TemplateParameterDeclarationList;
         delete Body;
     }
 };
