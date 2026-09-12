@@ -67,6 +67,8 @@ public:
         TemplateValueParam,
     };
 
+    static std::string join(const std::vector<Node*>& nodes,
+        const std::string& sep = ", ");
 protected:
     Node() {}
     explicit Node(EDeclType declType) : DeclType(declType) {}
@@ -75,6 +77,19 @@ public:
     virtual std::string print() = 0;
     virtual ~Node() = default;
 };
+
+inline std::string Node::join(const std::vector<Node*>& nodes,
+    const std::string& sep)
+{
+    std::string out;
+    for (size_t i = 0; i < nodes.size(); ++i) {
+        if (auto* n = nodes[i]; n) {
+            out += n->print();
+            if (i + 1 != nodes.size()) out += sep;
+        }
+    }
+    return out;
+}
 
 class NodeIdentifier : public Node
 {
@@ -150,11 +165,11 @@ public:
         std::string out = Identifier->print();
 
         switch (InitKind) {
-        case 0: break;                                                  // Default
-        case 1: out += "{  }"; break;                                   // Value
-        case 2: out += " = " + (Initializer ? Initializer->print() : ""); break; // Copy
-        case 3: out += (Initializer ? Initializer->print() : ""); break;         // DirectList
-        case 4: out += " = " + (Initializer ? Initializer->print() : ""); break; // CopyList
+        case 0: break;                                                            // Default
+        case 1: out += "{  }"; break;                                             // Value
+        case 2: out += " = " + (Initializer ? Initializer->print() : ""); break;  // Copy
+        case 3: out += (Initializer ? Initializer->print() : ""); break;          // DirectList
+        case 4: out += " = " + (Initializer ? Initializer->print() : ""); break;  // CopyList
         default:
             if (Initializer) out += " = " + Initializer->print();
             break;
@@ -178,12 +193,7 @@ class NodeDeclarationList : public Node
     std::vector<Node*> DeclarationList;
 public:
     std::string print() override {
-        std::string out;
-        size_t size = DeclarationList.size();
-        for (size_t i = 0; i < size; ++i)
-            if (auto decl = DeclarationList[i]; decl)
-                out += decl->print() + (i + 1 == size ? "" : ", ");
-        return out;
+        return Node::join(DeclarationList);
     }
 
     NodeDeclarationList(const std::vector<Node*>& list)
@@ -352,13 +362,7 @@ public:
     }
 
     std::string print() override {
-        std::string out = "(";
-        size_t size = Params.size();
-        for (size_t i = 0; i < size; ++i)
-            if (auto p = Params[i]; p)
-                out += p->print() + (i + 1 == size ? "" : ", ");
-        out += ")";
-        return out;
+        return "(" + Node::join(Params) + ")";
     }
 
     ~NodeParameterList() override {
@@ -545,13 +549,7 @@ public:
 
     std::string print() override {
         if (!Name) return "";
-        std::string out = Name->print() + "(";
-        size_t size = Args.size();
-        for (size_t i = 0; i < size; ++i)
-            if (auto a = Args[i]; a)
-                out += a->print() + (i + 1 == size ? "" : ", ");
-        out += ")";
-        return out;
+        return Name->print() + "(" + Node::join(Args) + ")";
     }
 
     ~NodeCall() override {
@@ -593,13 +591,7 @@ public:
     }
 
     std::string print() override {
-        std::string out = "<";
-        for (size_t i = 0; i < Params.size(); ++i) {
-            out += Params[i]->print();
-            if (i + 1 < Params.size()) out += ", ";
-        }
-        out += ">";
-        return out;
+        return "<" + Node::join(Params) + ">";
     }
 
     ~NodeTemplateParameterDeclarationList() override {
@@ -617,13 +609,7 @@ public:
     }
 
     std::string print() override {
-        std::string out = "<";
-        for (size_t i = 0; i < Params.size(); ++i) {
-            out += Params[i]->print();
-            if (i + 1 < Params.size()) out += ", ";
-        }
-        out += ">";
-        return out;
+        return "<" + Node::join(Params) + ">";
     }
 
     ~NodeTemplateParameterInstantiationList() override {
@@ -656,7 +642,8 @@ public:
         std::string out = "{\n";
         for (auto& [type, stmts] : FieldStatements) {
             out += getSymbol(type) + "\n";
-            for (auto* field : stmts) out += field->print() + "\n";
+            out += Node::join(stmts, "\n");
+            if (!stmts.empty()) out += "\n";
         }
         out += "}";
         return out;
@@ -779,7 +766,8 @@ public:
         std::string out = "{\n";
         for (auto& [type, stmts] : FieldStatements) {
             out += getSymbol(type) + "\n";
-            for (auto* field : stmts) out += field->print() + "\n";
+            out += Node::join(stmts, "\n");
+            if (!stmts.empty()) out += "\n";
         }
         out += "}";
         return out;
@@ -1137,16 +1125,7 @@ public:
     }
 
     std::string print() override {
-        std::string out = "{ ";
-        size_t size = Elements.size();
-        for (size_t i = 0; i < size; ++i) {
-            if (auto* e = Elements[i]; e) {
-                out += e->print();
-                if (i + 1 != size) out += ", ";
-            }
-        }
-        out += " }";
-        return out;
+        return "{ " + Node::join(Elements) + " }";
     }
 
     const std::vector<Node*>& getElements() const { return Elements; }
@@ -1183,16 +1162,7 @@ public:
     }
 
     std::string print() override {
-        std::string out = "<";
-        size_t size = Params.size();
-        for (size_t i = 0; i < size; ++i) {
-            if (auto* p = Params[i]; p) {
-                out += p->print();
-                if (i + 1 != size) out += ", ";
-            }
-        }
-        out += ">";
-        return out;
+        return "<" + Node::join(Params) + ">";
     }
 
     const std::vector<Node*>& getParams() const noexcept { return Params; }
