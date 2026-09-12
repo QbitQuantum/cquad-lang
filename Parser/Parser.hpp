@@ -759,7 +759,7 @@ Node* Parser::parseClass() {
     Node* name = parseClassName();
     Node* base = parseClassBase();
     Node* body = parseClassBody();
-    return new NodeClass(name, tmpl, base, body);
+    return new NodeClass(name, base, body);
 }
 
 Node* Parser::parseClassName() {
