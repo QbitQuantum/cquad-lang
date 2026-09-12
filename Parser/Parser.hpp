@@ -51,6 +51,10 @@ public:
         return tok::isWhitespaceToken(k) || tok::isCommentToken(k);
     }
 
+    size_t Size() const noexcept {
+        return Buffer.size();
+    }
+
     void skipTrivia() const noexcept {
         while (!eof() && isTriviaToken()) ++Pos;
     }
@@ -98,8 +102,8 @@ class Parser
 private:
     TokenStream stream;
     std::vector<Node*> ast;
-    std::vector<Token> ParserEngineBuffer;
 
+    size_t SizeStream() const noexcept { return stream.Size(); }
     bool isAtEnd() const noexcept { return stream.eof(); }
     TokenKind currentTokenKind() const noexcept { return stream.peek().type; }
     const Token& peek(size_t offset = 0) const noexcept { return stream.peek(offset); }
@@ -108,7 +112,7 @@ private:
     void advance() const noexcept { stream.consume(stream.peek().type); }
     void skipTrivia() const noexcept { stream.skipTrivia(); }
     size_t savePosition() const noexcept { return stream.savePosition(); }
-    void restorePosition(size_t pos) const noexcept { stream.restorePosition(pos); }
+    void restorePosition(size_t pos) const noexcept { stream.restorePosition(pos); skipTrivia(); }
 
     void raise(const std::string& msg) {
         auto token = peek();
@@ -190,15 +194,9 @@ private:
 
 public:
 
-    Parser(const PostLexer& advance) :
-        ParserEngineBuffer(advance.GetBufferPostLexerToken()),
-        stream(ParserEngineBuffer) {
-    }
-
-    Parser(const std::vector<Token>& Buffer) :
-        ParserEngineBuffer(Buffer),
-        stream(Buffer) {
-    }
+    Parser(const PostLexer& advance) : 
+        Parser(advance.GetBufferPostLexerToken()) { }
+    Parser(const std::vector<Token>& Buffer) : stream(Buffer) { }
 
     ~Parser()
     {
@@ -207,6 +205,7 @@ public:
     };
 
     void Parse() {
+        if (SizeStream() == 0) return;
         while (!isAtEnd()) {
             if (Node* node = parseTopLevel()) {
                 ast.push_back(node);
@@ -273,8 +272,8 @@ Node* Parser::parseExpression(int MinPrec, int _typeexpression) {
     Node* Left = parsePrimary();
     while (true) {
         TokenKind op = peek().type;
-        bool typeexpression = _typeexpression == typeexpression::sc_expression ? tok::IsBinaryOperator(op) : tok::IsConditionalOperator(op);
-        if (!typeexpression)
+        bool expressionType = _typeexpression == typeexpression::sc_expression ? tok::IsBinaryOperator(op) : tok::IsConditionalOperator(op);
+        if (!expressionType)
             break;
         int currentPriority = tok::GetBinaryOperatorPriority(op);
         if (currentPriority < MinPrec)
