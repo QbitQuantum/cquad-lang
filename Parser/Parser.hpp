@@ -100,18 +100,23 @@ private:
     std::vector<Node*> ast;
     std::vector<Token> ParserEngineBuffer;
 
-    bool isAtEnd() const { return stream.eof(); }
-    TokenKind currentTokenKind() const { return stream.peek().type; }
-    void advance() { stream.consume(stream.peek().type); }
-    void skipTrivia() { stream.skipTrivia(); }
+    bool isAtEnd() const noexcept { return stream.eof(); }
+    TokenKind currentTokenKind() const noexcept { return stream.peek().type; }
+    const Token& peek(size_t offset = 0) const noexcept { return stream.peek(offset); }
+    bool match(TokenKind id) const noexcept { return stream.match(id); }
+    const Token& consume(TokenKind id) const noexcept { return stream.consume(id); }
+    void advance() const noexcept { stream.consume(stream.peek().type); }
+    void skipTrivia() const noexcept { stream.skipTrivia(); }
+    size_t savePosition() const noexcept { return stream.savePosition(); }
+    void restorePosition(size_t pos) const noexcept { stream.restorePosition(pos); }
 
     void raise(const std::string& msg) {
-        auto token = stream.peek();
+        auto token = peek();
         throw ParseError::ParseError(token.line, token.column, msg);
     }
 
     void parseToken(TokenKind kind, const std::string& msg, bool soft = false) {
-        if (!stream.match(kind)) if (!soft) raise(msg);
+        if (!match(kind)) if (!soft) raise(msg);
     }
 
     Node* CreateTemplateDecl(Node* TemplateParams, Node* Decl);
@@ -221,7 +226,7 @@ Node* Parser::parseTopLevel()
 {
     Node* Template = parseTemplateDeclaration();
     Node* Stmt = nullptr;
-    switch (stream.peek().type) {
+    switch (peek().type) {
     case TokenKind::Class:    Stmt = parseClass(); break;
     default: Stmt = parseStatement(typescope::sc_global); break;
     }
@@ -230,24 +235,21 @@ Node* Parser::parseTopLevel()
 }
 
 Node* Parser::parseIdentifier(int _typeexpression) {
-    if (stream.peek().type != TokenKind::IdentifierLiteral)
+    if (peek().type != TokenKind::IdentifierLiteral)
         raise("Expected identifier");
 
-    std::string Identifier = stream.consume(TokenKind::IdentifierLiteral).value;
+    std::string Identifier = consume(TokenKind::IdentifierLiteral).value;
     std::vector<std::string> Scope;
 
-    while (stream.peek().type == TokenKind::ScResOp) {
-        stream.consume(TokenKind::ScResOp);
-
-        if (stream.peek().type != TokenKind::IdentifierLiteral)
+    while (match(TokenKind::ScResOp)) {
+        if (peek().type != TokenKind::IdentifierLiteral)
             raise("Expected identifier after '::'");
-
         Scope.push_back(std::move(Identifier));
-        Identifier = stream.consume(TokenKind::IdentifierLiteral).value;
+        Identifier = consume(TokenKind::IdentifierLiteral).value;
     }
 
     Node* TemplateArgs = nullptr;
-    if (stream.peek().type == TokenKind::Less &&
+    if (peek().type == TokenKind::Less &&
         _typeexpression != typeexpression::sc_condition) {
         TemplateArgs = parseTemplateParameterInstantiationList();
     }
@@ -257,11 +259,11 @@ Node* Parser::parseIdentifier(int _typeexpression) {
 
 Node* Parser::parseIdentifierExpression(int _typeexpression) {
     Node* IdentExpression = parseIdentifier(_typeexpression);
-    if (stream.peek().type == TokenKind::LeftParen)
+    if (peek().type == TokenKind::LeftParen)
         IdentExpression = parseNodeCall(IdentExpression);
-    if (stream.peek().type == TokenKind::Dot || stream.peek().type == TokenKind::Arrow)
+    if (peek().type == TokenKind::Dot || peek().type == TokenKind::Arrow)
     {
-        bool IsArrow = stream.peek().type == TokenKind::Arrow; advance();
+        bool IsArrow = peek().type == TokenKind::Arrow; advance();
         IdentExpression = new NodeMemberCall(IdentExpression, parseIdentifierExpression(_typeexpression), IsArrow);
     }
     return IdentExpression;
@@ -270,14 +272,14 @@ Node* Parser::parseIdentifierExpression(int _typeexpression) {
 Node* Parser::parseExpression(int MinPrec, int _typeexpression) {
     Node* Left = parsePrimary();
     while (true) {
-        TokenKind op = stream.peek().type;
+        TokenKind op = peek().type;
         bool typeexpression = _typeexpression == typeexpression::sc_expression ? tok::IsBinaryOperator(op) : tok::IsConditionalOperator(op);
         if (!typeexpression)
             break;
         int currentPriority = tok::GetBinaryOperatorPriority(op);
         if (currentPriority < MinPrec)
             break;
-        stream.consume(op);
+        consume(op);
         Node* Right = parseExpression(currentPriority + 1, _typeexpression);
         Left = new NodeBinaryOp(BinOparand::getBinaryOperand(op), Left, Right);
     }
@@ -293,12 +295,11 @@ Node* Parser::parseInitializerList() {
 
 Node* Parser::parseInitializerListBody() {
     std::vector<Node*> InitElements;
-    if (stream.peek().type != TokenKind::RightBrace)
+    if (peek().type != TokenKind::RightBrace)
     {
         InitElements.push_back(parseExpression());
-        while (stream.peek().type == TokenKind::Comma) {
-            stream.consume(TokenKind::Comma);
-            if (stream.peek().type == TokenKind::RightBrace) break;
+        while (match(TokenKind::Comma)) {
+            if (peek().type == TokenKind::RightBrace) break;
             InitElements.push_back(parseExpression());
         }
     }
@@ -308,13 +309,13 @@ Node* Parser::parseInitializerListBody() {
 Node* Parser::ParseConditionConstruct() {
     Node* ifCondition = parseIf();
     Node* elseCondition = nullptr;
-    if (stream.peek().type == TokenKind::Else)
+    if (peek().type == TokenKind::Else)
         elseCondition = parseElse();
     return new NodeCondition(ifCondition, elseCondition);
 }
 
 Node* Parser::parseIf() {
-    stream.consume(TokenKind::If);
+    consume(TokenKind::If);
     Node* Condition = parseIfCondition();
     Node* Body = parseIfBody();
     return new NodeIf(Condition, Body);
@@ -328,14 +329,14 @@ Node* Parser::parseIfCondition() {
 }
 
 Node* Parser::parseIfBody() {
-    if (stream.match(TokenKind::LeftBrace)) {
+    if (match(TokenKind::LeftBrace)) {
         Node* block = parseFunctionBlock();
         parseToken(TokenKind::RightBrace, "Expected '}' after if-body");
         return block;
     }
 
     NodeBlock* block = new NodeBlock();
-    Node* stmt = (stream.peek().type == TokenKind::If)
+    Node* stmt = (peek().type == TokenKind::If)
         ? ParseConditionConstruct()
         : parseStatement(typescope::sc_function);
     if (stmt) block->add(stmt);
@@ -343,7 +344,7 @@ Node* Parser::parseIfBody() {
 }
 
 Node* Parser::parseElse() {
-    stream.consume(TokenKind::Else);
+    consume(TokenKind::Else);
     Node* Body = parseElseBody();
     return new NodeElse(Body);
 }
@@ -353,9 +354,9 @@ Node* Parser::parseElseBody() {
 }
 
 Node* Parser::parseWhile() {
-    stream.consume(TokenKind::While);
+    consume(TokenKind::While);
     Node* Condition = parseWhileCondition();
-    bool hasDo = stream.match(TokenKind::Do);
+    bool hasDo = match(TokenKind::Do);
     Node* Body = parseWhileBody();
     parseToken(TokenKind::Semicolon, "", true);
     return new NodeWhile(Condition, Body, hasDo);
@@ -370,7 +371,7 @@ Node* Parser::parseWhileCondition() {
 
 Node* Parser::parseWhileBody() {
     Node* Body = nullptr;
-    if (stream.match(TokenKind::LeftBrace)) {
+    if (match(TokenKind::LeftBrace)) {
         Body = parseFunctionBlock();
         parseToken(TokenKind::RightBrace, "Expected '}' after while-body");
     }
@@ -385,10 +386,10 @@ Node* Parser::parseWhileBody() {
 }
 
 Node* Parser::parseReturn() {
-    stream.consume(TokenKind::Return);
+    consume(TokenKind::Return);
 
     Node* expr = nullptr;
-    if (stream.peek().type != TokenKind::Semicolon) {
+    if (peek().type != TokenKind::Semicolon) {
         expr = parseExpression();
     }
     parseToken(TokenKind::Semicolon, "Expected ';' after return statement");
@@ -396,18 +397,18 @@ Node* Parser::parseReturn() {
 }
 
 Node* Parser::parseNew() {
-    stream.consume(TokenKind::New);
+    consume(TokenKind::New);
     Node* SizeArgCArray = nullptr;
-    if (stream.peek().type == TokenKind::LeftBracket)
+    if (peek().type == TokenKind::LeftBracket)
         SizeArgCArray = parseSizeArgCArray();
     Node* Expression = parseIdentifierExpression();
     return new NodeNew(Expression, SizeArgCArray);
 }
 
 Node* Parser::parseDelete() {
-    stream.consume(TokenKind::Delete_);
+    consume(TokenKind::Delete_);
     Node* SizeArgCArray = nullptr;
-    if (stream.peek().type == TokenKind::LeftBracket)
+    if (peek().type == TokenKind::LeftBracket)
         SizeArgCArray = parseSizeArgCArray();
     Node* Expression = parseIdentifierExpression();
     parseToken(TokenKind::Semicolon, "Expected ';' after delete statement");
@@ -415,33 +416,33 @@ Node* Parser::parseDelete() {
 }
 
 Node* Parser::parseNullptr() {
-    stream.consume(TokenKind::NullptrLiteral);
+    consume(TokenKind::NullptrLiteral);
     return new NodeNullptr();
 }
 
 Node* Parser::parseDefault() {
-    stream.consume(TokenKind::Default);
+    consume(TokenKind::Default);
     return new NodeDefault();
 }
 
 Node* Parser::parseNodeInteger() {
-    return new NodeInteger(stream.consume(stream.peek().type).value);
+    return new NodeInteger(consume(peek().type).value);
 }
 
 Node* Parser::parseNodeFloating() {
-    return new NodeFloating(stream.consume(stream.peek().type).value);
+    return new NodeFloating(consume(peek().type).value);
 }
 
 Node* Parser::parseNodeBoolean() {
-    return new NodeBoolean(stream.consume(stream.peek().type).value);
+    return new NodeBoolean(consume(peek().type).value);
 }
 
 Node* Parser::parseNodeString() {
-    return new NodeString(stream.consume(stream.peek().type).value);
+    return new NodeString(consume(peek().type).value);
 }
 
 Node* Parser::parseNodeCharacter() {
-    return new NodeCharacter(stream.consume(stream.peek().type).value);
+    return new NodeCharacter(consume(peek().type).value);
 }
 
 Node* Parser::parseNodeCall(Node* CallName) {
@@ -450,11 +451,10 @@ Node* Parser::parseNodeCall(Node* CallName) {
 
     std::vector<Node*> ArgumentConcreticList;
 
-    if (stream.peek().type != TokenKind::RightParen)
+    if (peek().type != TokenKind::RightParen)
     {
         ArgumentConcreticList.push_back(parseExpression());
-        while (stream.peek().type == TokenKind::Comma) {
-            stream.consume(TokenKind::Comma);
+        while (match(TokenKind::Comma)) {
             ArgumentConcreticList.push_back(parseExpression());
         }
     }
@@ -466,7 +466,7 @@ Node* Parser::parseNodeCall(Node* CallName) {
 Node* Parser::parseSizeArgCArray() {
     parseToken(TokenKind::LeftBracket, "Expected '[' for CArray");
     Node* stmt = nullptr;
-    switch (stream.peek().type) {
+    switch (peek().type) {
     case TokenKind::IdentifierLiteral:
         stmt = parseIdentifier(); break;
     case TokenKind::IntegerLiteral:
@@ -486,33 +486,33 @@ Node* Parser::parseType() {
     bool IsConst = false;
     NodeType::EType eType = NodeType::EType::NONE;
 
-    bool is_auto = stream.match(TokenKind::Auto);
+    bool is_auto = match(TokenKind::Auto);
 
     if (!is_auto)
     {
-        if (stream.match(TokenKind::Const))
+        if (match(TokenKind::Const))
             IsConst = true;
 
-        if (stream.peek().type != TokenKind::IdentifierLiteral)
+        if (peek().type != TokenKind::IdentifierLiteral)
             raise("Expected identifier token");
 
         Type = parseIdentifier();
 
-        if (stream.peek().type == TokenKind::LeftBracket)
+        if (peek().type == TokenKind::LeftBracket)
             SizeArgCArray = parseSizeArgCArray();
 
-        switch (stream.peek().type)
+        switch (peek().type)
         {
         case TokenKind::Asterisk:
-            stream.consume(TokenKind::Asterisk);
+            consume(TokenKind::Asterisk);
             eType = NodeType::EType::POINTER;
             break;
         case TokenKind::Ampersand:
-            stream.consume(TokenKind::Ampersand);
+            consume(TokenKind::Ampersand);
             eType = NodeType::EType::REF;
             break;
         case TokenKind::And:
-            stream.consume(TokenKind::And);
+            consume(TokenKind::And);
             eType = NodeType::EType::RVALUE;
             break;
         default:
@@ -524,15 +524,15 @@ Node* Parser::parseType() {
 
 Node* Parser::parsePrimary() {
     UnaryOperand UnaryOp = UnaryOperand::Unknown;
-    if (tok::IsUnaryOperator(stream.peek().type))
+    if (tok::IsUnaryOperator(peek().type))
     {
-        UnaryOp = UnOparand::getUnaryOperand(stream.peek().type);
-        stream.consume(stream.peek().type);
+        UnaryOp = UnOparand::getUnaryOperand(peek().type);
+        consume(peek().type);
     }
 
     Node* Right = nullptr;
 
-    switch (stream.peek().type) {
+    switch (peek().type) {
     case TokenKind::New:
         Right = parseNew(); break;
     case TokenKind::Delete_:
@@ -565,7 +565,7 @@ Node* Parser::parsePrimary() {
         Right = parseInitializerList(); break;
     case TokenKind::LeftParen:
     {
-        stream.consume(TokenKind::LeftParen);
+        consume(TokenKind::LeftParen);
         Right = parseExpression();
         parseToken(TokenKind::RightParen, "Expected ')'");
         break;
@@ -577,21 +577,21 @@ Node* Parser::parsePrimary() {
 
 Node* Parser::parseTemplateParameter() {
     // template<typename C>  Ч template template parameter без имени
-    if (stream.peek().type == TokenKind::Template) {
+    if (peek().type == TokenKind::Template) {
         return parseTemplate();
     }
-    
+
     // typename A  [= default]
-    if (stream.peek().type == TokenKind::Typename)
+    if (peek().type == TokenKind::Typename)
     {
-        stream.consume(stream.peek().type);
+        consume(peek().type);
 
         Node* name = nullptr;
-        if (stream.peek().type == TokenKind::IdentifierLiteral)
+        if (peek().type == TokenKind::IdentifierLiteral)
             name = parseIdentifier();
 
         Node* defaultArg = nullptr;
-        if (stream.match(TokenKind::Equal))
+        if (match(TokenKind::Equal))
             defaultArg = parseType();
 
         return new NodeTemplateTypeParam(name, defaultArg);
@@ -602,7 +602,7 @@ Node* Parser::parseTemplateParameter() {
     Node* name = parseIdentifier();
 
     Node* defaultArg = nullptr;
-    if (stream.match(TokenKind::Equal))
+    if (match(TokenKind::Equal))
         defaultArg = parseExpression();
 
     return new NodeTemplateValueParam(type, name, defaultArg);
@@ -610,7 +610,7 @@ Node* Parser::parseTemplateParameter() {
 
 
 Node* Parser::parseTemplateDeclaration() {
-    if (stream.peek().type != TokenKind::Template)
+    if (peek().type != TokenKind::Template)
         return nullptr;
     return parseTemplate();
 }
@@ -625,9 +625,9 @@ Node* Parser::parseTemplate() {
 Node* Parser::parseTemplateParameterList() {
     parseToken(TokenKind::Less, "Expected '<' after 'template'");
     std::vector<Node*> Params;
-    if (stream.peek().type != TokenKind::Greater) {
+    if (peek().type != TokenKind::Greater) {
         Params.push_back(parseTemplateParameter());
-        while (stream.match(TokenKind::Comma))
+        while (match(TokenKind::Comma))
             Params.push_back(parseTemplateParameter());
     }
     parseToken(TokenKind::Greater, "Expected '>' after template parameter list");
@@ -652,14 +652,13 @@ Node* Parser::parseTemplateParameterInstantiation() {
 }
 
 Node* Parser::parseTemplateParameterInstantiationList() {
-    stream.consume(TokenKind::Less);
+    consume(TokenKind::Less);
 
     std::vector<Node*> TemplateParameterInstantiationList;
-    if (stream.peek().type != TokenKind::Greater)
+    if (peek().type != TokenKind::Greater)
     {
         TemplateParameterInstantiationList.push_back(parseTemplateParameterInstantiation());
-        while (stream.peek().type == TokenKind::Comma) {
-            stream.consume(TokenKind::Comma);
+        while (match(TokenKind::Comma)) {
             TemplateParameterInstantiationList.push_back(parseTemplateParameterInstantiation());
         }
     }
@@ -668,7 +667,7 @@ Node* Parser::parseTemplateParameterInstantiationList() {
 }
 
 Node* Parser::parseStatement(int type_scope) {
-    size_t savedPos = stream.savePosition();
+    size_t savedPos = savePosition();
 
     Node* type = nullptr;
     bool typeParsed = false;
@@ -677,27 +676,27 @@ Node* Parser::parseStatement(int type_scope) {
         typeParsed = true;
     }
     catch (...) {
-        stream.restorePosition(savedPos);
+        restorePosition(savedPos);
         typeParsed = false;
     }
 
     if (typeParsed && type) {
-        switch (stream.peek().type)
+        switch (peek().type)
         {
         case TokenKind::IdentifierLiteral:
         {
-            size_t afterType = stream.savePosition();
+            size_t afterType = savePosition();
             Node* name = parseIdentifier();
-            TokenKind next = stream.peek().type;
+            TokenKind next = peek().type;
             delete name;
 
             if (next == TokenKind::LeftParen) {
-                stream.restorePosition(savedPos);
+                restorePosition(savedPos);
                 delete type;
                 return parseFunction();
             }
 
-            stream.restorePosition(savedPos);
+            restorePosition(savedPos);
             delete type;
             return parseVar();
         }
@@ -705,7 +704,7 @@ Node* Parser::parseStatement(int type_scope) {
         {
             if (type_scope == typescope::sc_function)
             {
-                stream.restorePosition(savedPos);
+                restorePosition(savedPos);
                 delete type;
                 Node* Declaration = parseDeclaration();
                 parseToken(TokenKind::Semicolon, "Expected ';' after expression");
@@ -715,7 +714,7 @@ Node* Parser::parseStatement(int type_scope) {
         }
         case TokenKind::LeftBrace:
         {
-            stream.restorePosition(savedPos);
+            restorePosition(savedPos);
             delete type;
             return parseVar();
         }
@@ -723,7 +722,7 @@ Node* Parser::parseStatement(int type_scope) {
         {
             if (type_scope == typescope::sc_function)
             {
-                stream.restorePosition(savedPos);
+                restorePosition(savedPos);
                 delete type;
                 Node* Expression = parseIdentifierExpression();
                 parseToken(TokenKind::Semicolon, "Expected ';' after expression");
@@ -738,8 +737,8 @@ Node* Parser::parseStatement(int type_scope) {
         delete type;
     }
 
-    stream.restorePosition(savedPos);
-    if (stream.peek().type == TokenKind::IdentifierLiteral) {
+    restorePosition(savedPos);
+    if (peek().type == TokenKind::IdentifierLiteral) {
 
         Node* Expression = parseIdentifierExpression();
         parseToken(TokenKind::Semicolon, "Expected ';' after expression");
@@ -753,7 +752,7 @@ Node* Parser::parseStatement(int type_scope) {
 Node* Parser::parseFunction() {
     Node* returnType = parseType();
 
-    if (stream.peek().type != TokenKind::IdentifierLiteral) {
+    if (peek().type != TokenKind::IdentifierLiteral) {
         raise("Expected function name");
     }
     Node* name = parseIdentifier();
@@ -770,11 +769,10 @@ Node* Parser::parseFunctionParameterList() {
 
     std::vector<Node*> ArgumentList;
 
-    if (stream.peek().type != TokenKind::RightParen)
+    if (peek().type != TokenKind::RightParen)
     {
         ArgumentList.push_back(parseFunctionParameter());
-        while (stream.peek().type == TokenKind::Comma) {
-            stream.consume(TokenKind::Comma);
+        while (match(TokenKind::Comma)) {
             ArgumentList.push_back(parseFunctionParameter());
         }
     }
@@ -787,15 +785,15 @@ Node* Parser::parseFunctionParameter()
 {
     Node* type = parseType();
     Node* name = nullptr;
-    if (stream.peek().type == TokenKind::IdentifierLiteral) {
+    if (peek().type == TokenKind::IdentifierLiteral) {
         name = parseIdentifier();
     }
 
     Node* defaultValue = nullptr;
     int initKind = typeinitialization::i_unknown;
 
-    if (stream.match(TokenKind::Equal)) {
-        if (stream.peek().type == TokenKind::LeftBrace) {
+    if (match(TokenKind::Equal)) {
+        if (peek().type == TokenKind::LeftBrace) {
             initKind = typeinitialization::i_copy_list;
             defaultValue = parseInitializerList();
         }
@@ -811,7 +809,7 @@ Node* Parser::parseFunctionParameter()
 Node* Parser::parseFunctionBody() {
     Node* Body = nullptr;
 
-    if (stream.match(TokenKind::LeftBrace))
+    if (match(TokenKind::LeftBrace))
     {
         Body = parseFunctionBlock();
         parseToken(TokenKind::RightBrace, "Expected '}'");
@@ -827,9 +825,9 @@ Node* Parser::parseFunctionBlock()
 {
     NodeBlock* block = new NodeBlock();
 
-    while (!isAtEnd() && stream.peek().type != TokenKind::RightBrace) {
+    while (!isAtEnd() && peek().type != TokenKind::RightBrace) {
         Node* stmt = nullptr;
-        switch (stream.peek().type) {
+        switch (peek().type) {
         case TokenKind::If:     stmt = ParseConditionConstruct(); break;
         case TokenKind::While:  stmt = parseWhile(); break;
         case TokenKind::Return: stmt = parseReturn(); break;
@@ -846,14 +844,14 @@ Node* Parser::parseDeclaration() {
     Node* Identifier = nullptr;
     Node* Expression = nullptr;
 
-    if (stream.peek().type == TokenKind::IdentifierLiteral)
+    if (peek().type == TokenKind::IdentifierLiteral)
         Identifier = parseIdentifier();
 
-    if (stream.peek().type == TokenKind::Equal)
+    if (peek().type == TokenKind::Equal)
     {
         if (!Identifier)
             raise("Expected identifier");
-        stream.consume(TokenKind::Equal);
+        consume(TokenKind::Equal);
         Expression = parseExpression();
     }
 
@@ -864,14 +862,14 @@ Node* Parser::parseDeclarationPrimary() {
     Node* Identifier = nullptr;
     Node* Expression = nullptr;
 
-    if (stream.peek().type == TokenKind::IdentifierLiteral)
+    if (peek().type == TokenKind::IdentifierLiteral)
         Identifier = parseIdentifier();
 
-    if (stream.peek().type == TokenKind::Equal)
+    if (peek().type == TokenKind::Equal)
     {
         if (!Identifier)
             raise("Expected identifier");
-        stream.consume(TokenKind::Equal);
+        consume(TokenKind::Equal);
         Expression = parsePrimary();
     }
 
@@ -891,7 +889,7 @@ Node* Parser::parseVarType() {
 }
 
 Node* Parser::parseVarDeclaration() {
-    if (stream.peek().type != TokenKind::IdentifierLiteral)
+    if (peek().type != TokenKind::IdentifierLiteral)
         raise("Expected identifier in declaration");
 
     Node* name = parseIdentifier();
@@ -899,8 +897,8 @@ Node* Parser::parseVarDeclaration() {
     int initKind = typeinitialization::i_unknown;
     Node* init = nullptr;
 
-    if (stream.match(TokenKind::Equal)) {
-        if (stream.peek().type == TokenKind::LeftBrace) {
+    if (match(TokenKind::Equal)) {
+        if (peek().type == TokenKind::LeftBrace) {
             initKind = typeinitialization::i_copy_list;
             init = parseInitializerList();
         }
@@ -909,8 +907,8 @@ Node* Parser::parseVarDeclaration() {
             init = parseExpression();
         }
     }
-    else if (stream.match(TokenKind::LeftBrace)) {
-        if (stream.peek().type == TokenKind::RightBrace) {
+    else if (match(TokenKind::LeftBrace)) {
+        if (peek().type == TokenKind::RightBrace) {
             initKind = typeinitialization::i_value;
         }
         else {
@@ -929,15 +927,14 @@ Node* Parser::parseVarDeclaration() {
 Node* Parser::parseVarDeclarationList() {
     std::vector<Node*> ContainerDeclarationList;
     ContainerDeclarationList.push_back(parseVarDeclaration());
-    while (stream.peek().type == TokenKind::Comma) {
-        stream.consume(TokenKind::Comma);
+    while (match(TokenKind::Comma)) {
         ContainerDeclarationList.push_back(parseVarDeclaration());
     }
     return new NodeDeclarationList(ContainerDeclarationList);
 }
 
 Node* Parser::parseClass() {
-    stream.consume(TokenKind::Class);
+    consume(TokenKind::Class);
 
     Node* ClassTemplateParameterDeclarationList = nullptr;
     Node* ClassName = parseClassName();
@@ -948,7 +945,7 @@ Node* Parser::parseClass() {
 }
 
 Node* Parser::parseClassName() {
-    if (stream.peek().type != TokenKind::IdentifierLiteral)
+    if (peek().type != TokenKind::IdentifierLiteral)
         raise("Expected class name");
     return parseIdentifier();
 }
@@ -956,9 +953,9 @@ Node* Parser::parseClassName() {
 Node* Parser::parseClassBody() {
     Node* Body = nullptr;
 
-    if (stream.peek().type == TokenKind::LeftBrace)
+    if (peek().type == TokenKind::LeftBrace)
     {
-        stream.consume(TokenKind::LeftBrace);
+        consume(TokenKind::LeftBrace);
         Body = parseClassBlock();
         parseToken(TokenKind::RightBrace, "Expected '}' after class declaration");
     }
@@ -973,19 +970,19 @@ Node* Parser::parseClassBody() {
 Node* Parser::parseClassBaseClass() {
     Node* BaseClass = nullptr;
 
-    if (stream.match(TokenKind::Colon))
+    if (match(TokenKind::Colon))
     {
         using ClassInheritanceType = NodeBaseClass::InheritanceType;
         ClassInheritanceType Type = ClassInheritanceType::NONE;
 
-        switch (stream.peek().type)
+        switch (peek().type)
         {
         case TokenKind::Public:
-            stream.consume(TokenKind::Public);
+            consume(TokenKind::Public);
             Type = ClassInheritanceType::PUBLIC;
             break;
         case TokenKind::Private:
-            stream.consume(TokenKind::Private);
+            consume(TokenKind::Private);
             Type = ClassInheritanceType::PRIVATE;
             break;
         default:
@@ -1014,21 +1011,21 @@ Node* Parser::parseClassBlock() {
             }
         };
 
-    while (!isAtEnd() && stream.peek().type != TokenKind::RightBrace) {
+    while (!isAtEnd() && peek().type != TokenKind::RightBrace) {
         Node* stmt = nullptr;
-        switch (stream.peek().type) {
+        switch (peek().type) {
         case TokenKind::Private:
         case TokenKind::Public:
         case TokenKind::Static:
         {
-            TokenKind Scope = stream.peek().type;
+            TokenKind Scope = peek().type;
             if (!Statements.empty() || Type != ClassFieldType::NONE) {
                 FieldStatements.push_back({ Type, Statements });
                 Statements.clear();
             }
             Type = getClassFieldType(Scope);
-            stream.consume(Scope);
-            stream.consume(TokenKind::Colon);
+            consume(Scope);
+            consume(TokenKind::Colon);
             break;
         }
         case TokenKind::Class:    stmt = parseClass(); break;
