@@ -1,4 +1,3 @@
-
 #ifndef NODE_HPP
 #define NODE_HPP
 #pragma once
@@ -8,12 +7,71 @@
 #include <vector>
 #include <NodeBinaryOperand.h>
 #include <NodeUnaryOperand.h>
+
 class Node
 {
-protected:
-    int DeclType = -1;
-    Node() {};
 public:
+    static enum class EDeclType {
+        NONE = -1,
+        IDENTIFIER,
+        TYPE,
+        DECLARATION,
+        DECLARATION_LIST,
+        VAR_DECLARATION_LIST,
+        TEMPLATE_VAR_DECLARATION_LIST,
+        MEMBER_CALL,
+        SCOPE,
+        USING,
+        POINTER_SIGNATURE,
+        POINTER,
+        PARAMETER_LIST,
+        FUNCTION,
+        FUNCTION_TEMPLATE,
+        LAMBDA,
+        CONSTRUCTOR,
+        DESTRUCTOR,
+        NEW,
+        DELETE,
+        CALL,
+        BLOCK,
+        TEMPLATE_PARAMETER_DECLARATION_LIST,
+        TEMPLATE_PARAMETER_INSTANTIATION_LIST,
+        BLOCK_CLASS,
+        BASE_CLASS,
+        CLASS,
+        CLASS_TEMPLATE,
+        BLOCK_STRUCT,
+        STRUCT,
+        PROPERTY_BLOCK,
+        PROPERTY,
+        NAMESPACE,
+        INTEGER,
+        FLOATING,
+        STRING,
+        CHARACTER,
+        BOOLEAN,
+        NULLPTR,
+        DEFAULT,
+        WHILE,
+        TRY_CATCH,
+        BINARY_OP,
+        UNARY_OP,
+        CONDITION,
+        IF,
+        ELSE,
+        RETURN,
+        INITIALIZER_LIST,
+        TEMPLATE,
+        TEMPLATE_PARAMETER_LIST,
+        TEMPLATE_TYPE_PARAM,
+        TEMPLATE_VALUE_PARAM,
+    };
+
+protected:
+    Node() {}
+    explicit Node(EDeclType declType) : DeclType(declType) {}
+public:
+    const EDeclType DeclType = EDeclType::NONE;
     virtual std::string print() = 0;
     virtual ~Node() = default;
 };
@@ -25,6 +83,7 @@ class NodeIdentifier : public Node
     Node* Scope = nullptr;
 public:
     NodeIdentifier(Node* templateParameterInstantiationList, const std::string& name, Node* scope) :
+        Node(EDeclType::IDENTIFIER),
         TemplateParameterInstantiationList(templateParameterInstantiationList), Name(name), Scope(scope) {
     };
 
@@ -41,7 +100,7 @@ public:
 class NodeType : public Node
 {
 public:
-    enum class EType 
+    enum class EType
     {
         NONE, POINTER, REF, RVALUE
     };
@@ -61,7 +120,9 @@ public:
     }
 public:
     NodeType(Node* type, Node* sizeArgCArray, bool isConst, EType etype, bool isAuto) :
-        Type(type), SizeArgCArray(sizeArgCArray), IsConst(isConst), eType(etype), IsAuto(isAuto) {};
+        Node(EDeclType::TYPE),
+        Type(type), SizeArgCArray(sizeArgCArray), IsConst(isConst), eType(etype), IsAuto(isAuto) {
+    };
 
     std::string print() override {
         std::string fprint = "";
@@ -118,7 +179,8 @@ public:
     }
 
     NodeDeclaration(Node* identifier, Node* initializer, int initKind = -1)
-        : Identifier(identifier), Initializer(initializer), InitKind(initKind) {
+        : Node(EDeclType::DECLARATION),
+        Identifier(identifier), Initializer(initializer), InitKind(initKind) {
     };
 
     ~NodeDeclaration() override {
@@ -139,7 +201,9 @@ public:
                 fprint += Decl->print() + (i == size - 1 ? "" : ", ");
         return fprint;
     };
-    NodeDeclarationList(const std::vector<Node*>& declarationList) : DeclarationList(declarationList) { };
+    NodeDeclarationList(const std::vector<Node*>& declarationList)
+        : Node(EDeclType::DECLARATION_LIST), DeclarationList(declarationList) {
+    };
 
     ~NodeDeclarationList() override {
         for (auto& decl : DeclarationList) {
@@ -166,7 +230,9 @@ public:
         }
         return fprint;
     };
+
     NodeVarDeclarationList(Node* TemplateParameterDeclarationList, Node* type, Node* declarationList) :
+        Node(EDeclType::VAR_DECLARATION_LIST),
         TemplateParameterDeclarationList(TemplateParameterDeclarationList), Type(type), DeclarationList(declarationList) {
     };
 
@@ -174,6 +240,27 @@ public:
         delete TemplateParameterDeclarationList;
         delete Type;
         delete DeclarationList;
+    };
+};
+
+class NodeVarDeclarationListTemplate : public Node
+{
+    Node* Template = nullptr;
+    Node* VarDeclarationList = nullptr;
+public:
+    NodeVarDeclarationListTemplate(
+        Node* _template, Node* varDeclarationList)
+        : Node(EDeclType::FUNCTION_TEMPLATE), Template(_template), VarDeclarationList(varDeclarationList) {
+    };
+
+    std::string print() override {
+        if (!Template || !VarDeclarationList) return "";
+        return Template->print() + "\n" + VarDeclarationList->print();
+    };
+
+    ~NodeVarDeclarationListTemplate() {
+        delete VarDeclarationList;
+        delete Template;
     };
 };
 
@@ -185,12 +272,13 @@ class NodeMemberCall : public Node
 
 public:
     std::string print() override {
-        std::string fprint = Identifier->print() + 
-            (IsArrow ? "->" : + ".") + CallExpr->print();
+        std::string fprint = Identifier->print() +
+            (IsArrow ? "->" : +".") + CallExpr->print();
         return fprint;
     };
 
     NodeMemberCall(Node* identifier, Node* callExpr, bool isArrow) :
+        Node(EDeclType::MEMBER_CALL),
         Identifier(identifier), CallExpr(callExpr), IsArrow(isArrow) {
     };
 
@@ -204,41 +292,18 @@ class NodeScope : public Node
 {
     std::vector<std::string> Scope;
 public:
-    NodeScope(const std::vector<std::string>& scope) :
-        Scope(scope) {
+    NodeScope(const std::vector<std::string>& scope)
+        : Node(EDeclType::SCOPE), Scope(scope) {
     };
-    std::string print() override { 
+    std::string print() override {
         std::string fprint = "";
         int size = Scope.size();
         for (size_t i = 0; i < size; i++)
             fprint += Scope[i] + "::";
         return fprint;
-    
+
     };
     ~NodeScope() {
-    };
-};
-
-class NodeUsingSimple : public Node
-{
-public:
-    Node* Name = nullptr;
-    Node* ScopeType = nullptr;
-public:
-    NodeUsingSimple(Node* name, Node* scopeType) :
-        Name(name), ScopeType(scopeType) {
-    };
-
-    std::string print() override {
-        if (!Name) return "";
-        std::string fprint = Name->print();
-        if (ScopeType) fprint += " = " + ScopeType->print();
-        return fprint;
-    }
-
-    ~NodeUsingSimple() {
-        delete Name;
-        delete ScopeType;
     };
 };
 
@@ -250,7 +315,8 @@ public:
     Node* ScopeType = nullptr;
     bool Simple = false;
 public:
-    NodeUsing(Node* TemplateParameterDeclarationList, Node* name, Node* scopeType) :
+    NodeUsing(Node* TemplateParameterDeclarationList, Node* name, Node* scopeType)
+        : Node(EDeclType::USING),
         TemplateParameterDeclarationList(TemplateParameterDeclarationList), Name(name), ScopeType(scopeType) {
     };
 
@@ -262,7 +328,7 @@ public:
         if (ScopeType) fprint += " = " + ScopeType->print();
         return fprint;
     }
-    
+
     ~NodeUsing() {
         delete TemplateParameterDeclarationList;
         delete Name;
@@ -276,7 +342,8 @@ public:
     Node* ReturnType = nullptr;
     Node* ParameterList = nullptr;
 public:
-    NodePointerSignature(Node* returnType, Node* parameterList) :
+    NodePointerSignature(Node* returnType, Node* parameterList)
+        : Node(EDeclType::POINTER_SIGNATURE),
         ReturnType(returnType), ParameterList(parameterList) {
     };
 
@@ -299,7 +366,8 @@ public:
     Node* Name = nullptr;
     Node* Declaration = nullptr;
 public:
-    NodePointer(Node* TemplateParameterDeclarationList, Node* name, Node* declartion) :
+    NodePointer(Node* TemplateParameterDeclarationList, Node* name, Node* declartion)
+        : Node(EDeclType::POINTER),
         TemplateParameterDeclarationList(TemplateParameterDeclarationList), Name(name), Declaration(declartion) {
     };
 
@@ -322,8 +390,9 @@ class NodeParameterList : public Node
 {
     std::vector<Node*> ParameterList;
 public:
-    NodeParameterList(const std::vector<Node*>& parameterList) 
-    : ParameterList(parameterList) { };
+    NodeParameterList(const std::vector<Node*>& parameterList)
+        : Node(EDeclType::PARAMETER_LIST), ParameterList(parameterList) {
+    };
 
     std::string print() override {
         std::string fprint = "(";
@@ -349,10 +418,13 @@ class NodeFunction : public Node
     Node* Body = nullptr;
 public:
     NodeFunction(
-        Node* type, Node* TemplateParameterDeclarationList, Node* name, Node* parameterList, Node* body) :
-        Type(type), TemplateParameterDeclarationList(TemplateParameterDeclarationList), Identifier(name), ParameterList(parameterList), Body(body){ };
+        Node* type, Node* TemplateParameterDeclarationList, Node* name, Node* parameterList, Node* body)
+        : Node(EDeclType::FUNCTION),
+        Type(type), TemplateParameterDeclarationList(TemplateParameterDeclarationList),
+        Identifier(name), ParameterList(parameterList), Body(body) {
+    };
 
-    std::string print() override {  
+    std::string print() override {
         if (!Type || !Identifier || !ParameterList) return "";
 
         std::string fprint = "function";
@@ -371,6 +443,27 @@ public:
     };
 };
 
+class NodeFunctionTemplate : public Node
+{
+    Node* Template = nullptr;
+    Node* Function = nullptr;
+public:
+    NodeFunctionTemplate(
+        Node* _template, Node* function)
+        : Node(EDeclType::FUNCTION_TEMPLATE), Template(_template), Function(function) {
+    };
+
+    std::string print() override {
+        if (!Template || !Function) return "";
+        return Template->print() + "\n" + Function->print();
+    };
+
+    ~NodeFunctionTemplate() {
+        delete Function;
+        delete Template;
+    };
+};
+
 class NodeLambda : public Node
 {
     Node* Type = nullptr;
@@ -380,8 +473,10 @@ class NodeLambda : public Node
     Node* Body = nullptr;
 public:
     NodeLambda(
-        Node* type, Node* TemplateParameterDeclarationList, Node* name, Node* parameterList, Node* body) :
-        Type(type), TemplateParameterDeclarationList(TemplateParameterDeclarationList), Identifier(name), ParameterList(parameterList), Body(body) {
+        Node* type, Node* TemplateParameterDeclarationList, Node* name, Node* parameterList, Node* body)
+        : Node(EDeclType::LAMBDA),
+        Type(type), TemplateParameterDeclarationList(TemplateParameterDeclarationList),
+        Identifier(name), ParameterList(parameterList), Body(body) {
     };
 
     std::string print() override {
@@ -404,15 +499,17 @@ public:
 };
 
 
-class NodeConstructor : public Node 
+class NodeConstructor : public Node
 {
     Node* TemplateParameterDeclarationList = nullptr;
     Node* ParameterList = nullptr;
     Node* Body = nullptr;
 public:
     NodeConstructor(
-        Node* TemplateParameterDeclarationList, Node* parameterList, Node* body) :
-        TemplateParameterDeclarationList(TemplateParameterDeclarationList), ParameterList(parameterList), Body(body) {
+        Node* TemplateParameterDeclarationList, Node* parameterList, Node* body)
+        : Node(EDeclType::CONSTRUCTOR),
+        TemplateParameterDeclarationList(TemplateParameterDeclarationList),
+        ParameterList(parameterList), Body(body) {
     };
 
     std::string print() override {
@@ -437,7 +534,8 @@ class NodeDestructor : public Node {
     Node* Body = nullptr;
 public:
     NodeDestructor(
-        Node* parameterList, Node* body) :
+        Node* parameterList, Node* body)
+        : Node(EDeclType::DESTRUCTOR),
         ParameterList(parameterList), Body(body) {
     };
 
@@ -456,39 +554,13 @@ public:
     };
 };
 
-class NodeTemplate : public Node
-{
-public:
-    Node* TemplateParameterDeclarationList = nullptr;
-    Node* Name = nullptr;
-    Node* Declaration = nullptr;
-public:
-    NodeTemplate(Node* TemplateParameterDeclarationList, Node* name, Node* declartion) :
-        TemplateParameterDeclarationList(TemplateParameterDeclarationList), Name(name), Declaration(declartion) {
-    };
-
-    std::string print() override {
-        if (!Name || !Declaration) return "";
-        std::string fprint = "template";
-        if (TemplateParameterDeclarationList) fprint += TemplateParameterDeclarationList->print();
-        fprint += " " + Name->print();
-        if (Declaration) fprint += " = " + Declaration->print();
-        return fprint;
-    }
-
-    ~NodeTemplate() {
-        delete Declaration;
-        delete Name;
-        delete TemplateParameterDeclarationList;
-    };
-};
-
 class NodeNew : public Node
 {
     Node* Expression = nullptr;
     Node* SizeArgCArray = nullptr;
 public:
-    NodeNew(Node* expression, Node* sizeArgCArray) : 
+    NodeNew(Node* expression, Node* sizeArgCArray)
+        : Node(EDeclType::NEW),
         Expression(expression), SizeArgCArray(sizeArgCArray) {
     };
 
@@ -508,7 +580,8 @@ class NodeDelete : public Node
     Node* Expression = nullptr;
     Node* SizeArgCArray = nullptr;
 public:
-    NodeDelete(Node* expression, Node* sizeArgCArray) :
+    NodeDelete(Node* expression, Node* sizeArgCArray)
+        : Node(EDeclType::DELETE),
         Expression(expression), SizeArgCArray(sizeArgCArray) {
     };
 
@@ -529,7 +602,8 @@ class NodeCall : public Node
     std::vector<Node*> ArgumentConcreticList;
 public:
     NodeCall(
-        Node* name, const std::vector<Node*> argumentConcreticList) :
+        Node* name, const std::vector<Node*> argumentConcreticList)
+        : Node(EDeclType::CALL),
         Name(name), ArgumentConcreticList(argumentConcreticList) {
     };
 
@@ -556,7 +630,7 @@ class NodeBlock : public Node
 {
     std::vector<Node*> Statements;
 public:
-    NodeBlock() = default;
+    NodeBlock() : Node(EDeclType::BLOCK) {}
 
     void add(Node* stmt) {
         if (stmt) Statements.push_back(stmt);
@@ -584,7 +658,9 @@ public:
 class NodeTemplateParameterDeclartionList : public Node {
     std::vector<Node*> Params;
 public:
-    NodeTemplateParameterDeclartionList(std::vector<Node*> params) : Params(params) { };
+    NodeTemplateParameterDeclartionList(std::vector<Node*> params)
+        : Node(EDeclType::TEMPLATE_PARAMETER_DECLARATION_LIST), Params(params) {
+    };
 
     std::string print() override {
         std::string fprint = "<";
@@ -605,7 +681,9 @@ public:
 class NodeTemplateParameterInstantiationList : public Node {
     std::vector<Node*> Params;
 public:
-    NodeTemplateParameterInstantiationList(std::vector<Node*> params) : Params(params) {};
+    NodeTemplateParameterInstantiationList(std::vector<Node*> params)
+        : Node(EDeclType::TEMPLATE_PARAMETER_INSTANTIATION_LIST), Params(params) {
+    };
 
     std::string print() override {
         std::string fprint = "<";
@@ -642,7 +720,7 @@ private:
     }
 public:
     NodeBlockClass(std::vector<std::pair<FieldType, std::vector<Node*>>> fieldStatements)
-        : FieldStatements(fieldStatements) {
+        : Node(EDeclType::BLOCK_CLASS), FieldStatements(fieldStatements) {
     };
 
     std::string print() override {
@@ -685,7 +763,7 @@ public:
         Node* identifier,
         InheritanceType type = InheritanceType::NONE
     )
-        : Identifier(identifier), Type(type) {
+        : Node(EDeclType::BASE_CLASS), Identifier(identifier), Type(type) {
     }
 
     std::string print() override {
@@ -714,7 +792,9 @@ public:
         Node* baseClass,
         Node* body
     )
-        : Identifier(identifier), TemplateParameterDeclarationList(templateParameterDeclarationList), BaseClass(baseClass), Body(body) {
+        : Node(EDeclType::CLASS),
+        Identifier(identifier), TemplateParameterDeclarationList(templateParameterDeclarationList),
+        BaseClass(baseClass), Body(body) {
     }
 
     std::string print() override {
@@ -733,6 +813,27 @@ public:
         delete BaseClass;
         delete Body;
     }
+};
+
+class NodeClassTemplate : public Node
+{
+    Node* Template = nullptr;
+    Node* Class = nullptr;
+public:
+    NodeClassTemplate(
+        Node* _template, Node* _class)
+        : Node(EDeclType::CLASS_TEMPLATE), Template(_template), Class(_class) {
+    };
+
+    std::string print() override {
+        if (!Template || !Class) return "";
+        return Template->print() + "\n" + Class->print();
+    };
+
+    ~NodeClassTemplate() {
+        delete Class;
+        delete Template;
+    };
 };
 
 class NodeBlockStruct : public Node
@@ -754,7 +855,7 @@ private:
     }
 public:
     NodeBlockStruct(std::vector<std::pair<FieldType, std::vector<Node*>>> fieldStatements)
-        : FieldStatements(fieldStatements) {
+        : Node(EDeclType::BLOCK_STRUCT), FieldStatements(fieldStatements) {
     };
 
     std::string print() override {
@@ -791,7 +892,8 @@ public:
         Node* generics,
         Node* body
     )
-        : Identifier(identifier), TemplateParameterDeclarationList(generics), Body(body) {
+        : Node(EDeclType::STRUCT),
+        Identifier(identifier), TemplateParameterDeclarationList(generics), Body(body) {
     }
 
     std::string print() override {
@@ -816,7 +918,8 @@ class NodePropertyBlock : public Node {
 public:
     NodePropertyBlock(
         Node* getter,
-        Node* setter) :
+        Node* setter)
+        : Node(EDeclType::PROPERTY_BLOCK),
         Getter(getter), Setter(setter) {
     }
 
@@ -836,7 +939,8 @@ class NodeProperty : public Node {
     Node* Type = nullptr;
     Node* Block = nullptr;
 public:
-    NodeProperty(Node* name, Node* type, Node* block) :
+    NodeProperty(Node* name, Node* type, Node* block)
+        : Node(EDeclType::PROPERTY),
         Name(name), Type(type), Block(block) {
     }
 
@@ -858,7 +962,8 @@ private:
     Node* Body = nullptr;
 public:
     NodeNamespace(Node* name, Node* body)
-        : Name(name), Body(body) {
+        : Node(EDeclType::NAMESPACE),
+        Name(name), Body(body) {
     }
 
     std::string print() override {
@@ -877,7 +982,9 @@ class NodeInteger : public Node {
 private:
     std::string raw_value;
 public:
-    NodeInteger(const std::string& val) : raw_value(val) {}
+    NodeInteger(const std::string& val)
+        : Node(EDeclType::INTEGER), raw_value(val) {
+    }
 
     std::string print() override {
         return raw_value;
@@ -888,7 +995,9 @@ class NodeFloating : public Node {
 private:
     std::string raw_value;
 public:
-    NodeFloating(const std::string& val) : raw_value(val) {}
+    NodeFloating(const std::string& val)
+        : Node(EDeclType::FLOATING), raw_value(val) {
+    }
 
     std::string print() override {
         return raw_value;
@@ -899,7 +1008,9 @@ class NodeString : public Node {
 private:
     std::string raw_value;
 public:
-    NodeString(const std::string& val) : raw_value(val) {}
+    NodeString(const std::string& val)
+        : Node(EDeclType::STRING), raw_value(val) {
+    }
 
     std::string print() override {
         return "\"" + raw_value + "\"";
@@ -910,7 +1021,9 @@ class NodeCharacter : public Node {
 private:
     std::string raw_value;
 public:
-    NodeCharacter(const std::string& val) : raw_value(val) {}
+    NodeCharacter(const std::string& val)
+        : Node(EDeclType::CHARACTER), raw_value(val) {
+    }
 
     std::string print() override {
         return "'" + std::string(1, raw_value[0]) + "'";
@@ -921,7 +1034,9 @@ class NodeBoolean : public Node {
 private:
     std::string raw_value;
 public:
-    NodeBoolean(const std::string& val) : raw_value(val) {}
+    NodeBoolean(const std::string& val)
+        : Node(EDeclType::BOOLEAN), raw_value(val) {
+    }
 
     std::string print() override {
         return raw_value;
@@ -930,6 +1045,8 @@ public:
 
 class NodeNullptr : public Node {
 public:
+    NodeNullptr() : Node(EDeclType::NULLPTR) {}
+
     std::string print() override {
         return "nullptr";
     }
@@ -937,6 +1054,8 @@ public:
 
 class NodeDefault : public Node {
 public:
+    NodeDefault() : Node(EDeclType::DEFAULT) {}
+
     std::string print() override {
         return "default";
     }
@@ -947,9 +1066,11 @@ class NodeWhile : public Node {
     Node* Body = nullptr;
     bool IsDoWhile = false;
 public:
-    NodeWhile(Node* condition, Node* body, bool isDoWhile) :
-        Condition(condition), Body(body), IsDoWhile(isDoWhile) {}
-    
+    NodeWhile(Node* condition, Node* body, bool isDoWhile)
+        : Node(EDeclType::WHILE),
+        Condition(condition), Body(body), IsDoWhile(isDoWhile) {
+    }
+
     std::string print() override {
         if (!Condition || !Body) return "";
         std::string fprint = "while ";
@@ -970,7 +1091,8 @@ class NodeTryCatch : public Node {
     Node* BodyCatch = nullptr;
     Node* Declaration = nullptr;
 public:
-    NodeTryCatch(Node* bodytry, Node* bodycatch, Node* declaration) :
+    NodeTryCatch(Node* bodytry, Node* bodycatch, Node* declaration)
+        : Node(EDeclType::TRY_CATCH),
         BodyTry(bodytry), BodyCatch(bodycatch), Declaration(declaration) {
     }
     std::string print() override {
@@ -995,7 +1117,8 @@ class NodeBinaryOp : public Node {
     Node* Right = nullptr;
 public:
     NodeBinaryOp(const BinaryOperand& operand, Node* left, Node* right)
-        : Operand(operand), Left(left), Right(right) {
+        : Node(EDeclType::BINARY_OP),
+        Operand(operand), Left(left), Right(right) {
     }
 
     std::string print() override {
@@ -1014,7 +1137,8 @@ class NodeUnaryOp : public Node {
     Node* Right = nullptr;
 public:
     NodeUnaryOp(const UnaryOperand& operand, Node* right)
-        : Operand(operand), Right(right) {
+        : Node(EDeclType::UNARY_OP),
+        Operand(operand), Right(right) {
     }
 
     std::string print() override {
@@ -1032,7 +1156,8 @@ private:
     Node* Else = nullptr;
 public:
     NodeCondition(Node* _if, Node* _else)
-        : If(_if), Else(_else) {
+        : Node(EDeclType::CONDITION),
+        If(_if), Else(_else) {
     }
 
     std::string print() override {
@@ -1059,7 +1184,9 @@ public:
         return fprint;
     }
 
-    NodeIf(Node* cond, Node* body) : Condition(cond), Body(body) {}
+    NodeIf(Node* cond, Node* body)
+        : Node(EDeclType::IF), Condition(cond), Body(body) {
+    }
     ~NodeIf() { delete Condition; delete Body; }
 };
 
@@ -1069,7 +1196,9 @@ public:
     std::string print() override {
         return Body ? Body->print() : "";
     }
-    NodeElse(Node* body) : Body(body) {}
+    NodeElse(Node* body)
+        : Node(EDeclType::ELSE), Body(body) {
+    }
     ~NodeElse() { delete Body; }
 };
 
@@ -1078,7 +1207,9 @@ class NodeReturn : public Node
 public:
     Node* Expression = nullptr;
 
-    explicit NodeReturn(Node* expression) : Expression(expression) {}
+    explicit NodeReturn(Node* expression)
+        : Node(EDeclType::RETURN), Expression(expression) {
+    }
 
     std::string print() override {
         return "return " + (Expression ? Expression->print() : "");
@@ -1095,8 +1226,8 @@ class NodeInitializerList : public Node
     std::vector<Node*> Elements;
 
 public:
-    NodeInitializerList(const std::vector<Node*>& elements) :
-        Elements(elements) {
+    NodeInitializerList(const std::vector<Node*>& elements)
+        : Node(EDeclType::INITIALIZER_LIST), Elements(elements) {
     };
 
     std::string print() override {
@@ -1121,6 +1252,99 @@ public:
             delete elem;
         }
     };
+};
+
+// template<...>
+class NodeTemplate : public Node {
+    Node* Params;
+public:
+    explicit NodeTemplate(Node* params)
+        : Node(EDeclType::TEMPLATE), Params(params) {
+    }
+
+    std::string print() override {
+        if (!Params) return "";
+        return "template" + Params->print();
+    };
+
+    ~NodeTemplate() override { delete Params; }
+};
+
+
+class NodeTemplateParameterList : public Node {
+    std::vector<Node*> Params;
+public:
+    explicit NodeTemplateParameterList(std::vector<Node*> params)
+        : Node(EDeclType::TEMPLATE_PARAMETER_LIST), Params(std::move(params)) {
+    }
+
+    std::string print() override {
+        std::string fprint = "<";
+        int size = Params.size();
+        for (size_t i = 0; i < size; i++) {
+            if (auto elem = Params[i]; elem) {
+                fprint += elem->print();
+                if (i != size - 1) fprint += ", ";
+            }
+        }
+        fprint += ">";
+        return fprint;
+    };
+
+    ~NodeTemplateParameterList() override {
+        for (auto* p : Params) delete p;
+    }
+
+    const std::vector<Node*>& getParams() const noexcept { return Params; }
+};
+
+// typename T  |  typename T = int
+class NodeTemplateTypeParam : public Node {
+    Node* Name;
+    Node* DefaultArg;
+public:
+    NodeTemplateTypeParam(Node* name, Node* defaultArg)
+        : Node(EDeclType::TEMPLATE_TYPE_PARAM),
+        Name(name), DefaultArg(defaultArg) {
+    }
+
+    std::string print() override {
+        if (!Name) return "";
+        std::string fprint = "typename " + Name->print();
+        if (DefaultArg) fprint += " = " + DefaultArg->print();
+        return fprint;
+    };
+
+    ~NodeTemplateTypeParam() override {
+        delete Name;
+        delete DefaultArg;
+    }
+};
+
+// int B  |  int B = 3
+class NodeTemplateValueParam : public Node {
+    Node* Type;
+    Node* Name;
+    Node* DefaultArg;
+public:
+    NodeTemplateValueParam(Node* type, Node* name, Node* defaultArg)
+        : Node(EDeclType::TEMPLATE_VALUE_PARAM),
+        Type(type), Name(name), DefaultArg(defaultArg) {
+    }
+
+    std::string print() override {
+        if (!Type) return "";
+        std::string fprint = Type->print();
+        if (Name) fprint += Name->print();
+        if (DefaultArg) fprint += " = " + DefaultArg->print();
+        return fprint;
+    };
+
+    ~NodeTemplateValueParam() override {
+        delete Type;
+        delete Name;
+        delete DefaultArg;
+    }
 };
 
 #endif // NODE_HPP

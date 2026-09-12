@@ -114,10 +114,17 @@ private:
         if (!stream.match(kind)) if (!soft) raise(msg);
     }
 
+    Node* CreateTemplateDecl(Node* TemplateParams, Node* Decl);
+
     Node* parseTopLevel();
 
     Node* parseIdentifier(int _typeexpression = typeexpression::sc_unknown);
     Node* parseIdentifierExpression(int _typeexpression = typeexpression::sc_unknown);
+
+    Node* parseTemplateDeclaration();
+    Node* parseTemplate();
+    Node* parseTemplateParameter();
+    Node* parseTemplateParameterList();
 
     Node* parseTemplateParameterInstantiation();
     Node* parseTemplateParameterInstantiationList();
@@ -212,10 +219,14 @@ public:
 
 Node* Parser::parseTopLevel()
 {
+    Node* Template = parseTemplateDeclaration();
+    Node* Stmt = nullptr;
     switch (stream.peek().type) {
-    case TokenKind::Class:    return parseClass();
-    default: return parseStatement(typescope::sc_global);
+    case TokenKind::Class:    Stmt = parseClass(); break;
+    default: Stmt = parseStatement(typescope::sc_global); break;
     }
+    if (Template) Stmt = CreateTemplateDecl(Template, Stmt);
+    return Stmt;
 }
 
 Node* Parser::parseIdentifier(int _typeexpression) {
@@ -562,6 +573,78 @@ Node* Parser::parsePrimary() {
     default: raise("Unexpected token in primary expression");
     }
     return UnaryOp == UnaryOperand::Unknown ? Right : new NodeUnaryOp(UnaryOp, Right);
+}
+
+Node* Parser::parseTemplateParameter() {
+    // template<typename C>  Ч template template parameter без имени
+    if (stream.peek().type == TokenKind::Template) {
+        return parseTemplate();
+    }
+    
+    // typename A  [= default]
+    if (stream.peek().type == TokenKind::Typename)
+    {
+        stream.consume(stream.peek().type);
+
+        Node* name = nullptr;
+        if (stream.peek().type == TokenKind::IdentifierLiteral)
+            name = parseIdentifier();
+
+        Node* defaultArg = nullptr;
+        if (stream.match(TokenKind::Equal))
+            defaultArg = parseType();
+
+        return new NodeTemplateTypeParam(name, defaultArg);
+    }
+
+    // int B [= 3]  Ч non-type parameter
+    Node* type = parseType();
+    Node* name = parseIdentifier();
+
+    Node* defaultArg = nullptr;
+    if (stream.match(TokenKind::Equal))
+        defaultArg = parseExpression();
+
+    return new NodeTemplateValueParam(type, name, defaultArg);
+}
+
+
+Node* Parser::parseTemplateDeclaration() {
+    if (stream.peek().type != TokenKind::Template)
+        return nullptr;
+    return parseTemplate();
+}
+
+Node* Parser::parseTemplate() {
+    parseToken(TokenKind::Template, "Expected 'template'");
+    Node* TemplateParameterList = parseTemplateParameterList();
+    return new NodeTemplate(TemplateParameterList);
+}
+
+
+Node* Parser::parseTemplateParameterList() {
+    parseToken(TokenKind::Less, "Expected '<' after 'template'");
+    std::vector<Node*> Params;
+    if (stream.peek().type != TokenKind::Greater) {
+        Params.push_back(parseTemplateParameter());
+        while (stream.match(TokenKind::Comma))
+            Params.push_back(parseTemplateParameter());
+    }
+    parseToken(TokenKind::Greater, "Expected '>' after template parameter list");
+    return new NodeTemplateParameterList(std::move(Params));
+}
+
+Node* Parser::CreateTemplateDecl(Node* TemplateParams, Node* Decl) {
+    switch (Decl->DeclType) {
+    case Node::EDeclType::FUNCTION:
+        return new NodeFunctionTemplate(TemplateParams, Decl);
+    case Node::EDeclType::CLASS:
+        return new NodeClassTemplate(TemplateParams, Decl);
+    case Node::EDeclType::VAR_DECLARATION_LIST:
+        return new NodeVarDeclarationListTemplate(TemplateParams, Decl);
+    }
+    parseToken(TokenKind::Greater, "Not template used: " + std::to_string(static_cast<int>(Decl->DeclType)));
+    return nullptr;
 }
 
 Node* Parser::parseTemplateParameterInstantiation() {

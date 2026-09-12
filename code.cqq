@@ -1,5 +1,5 @@
 
-
+template<typename A, int B = 3, template<typename C>>
 class CompilationContext
 {
     int labelCount = 10;
