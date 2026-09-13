@@ -91,22 +91,20 @@ class NodeIdentifier : public Node
 {
     Node* TemplateArgs = nullptr;
     std::string Name;
-    Node* Scope = nullptr;
 public:
-    NodeIdentifier(Node* templateArgs, const std::string& name, Node* scope)
+    NodeIdentifier(Node* templateArgs, const std::string& name)
         : Node(EDeclType::Identifier),
-        TemplateArgs(templateArgs), Name(name), Scope(scope) {
+        TemplateArgs(templateArgs), Name(name) {
     }
 
     std::string print() override {
-        std::string out = (Scope ? Scope->print() : "") + Name;
+        std::string out = Name;
         if (TemplateArgs) out += TemplateArgs->print();
         return out;
     }
 
     ~NodeIdentifier() override {
         delete TemplateArgs;
-        delete Scope;
     }
 };
 
@@ -270,16 +268,14 @@ public:
 
 class NodeScope : public Node
 {
-    std::vector<std::string> Scope;
+    std::vector<Node*> Scope;
 public:
-    NodeScope(const std::vector<std::string>& scope)
+    NodeScope(const std::vector<Node*>& scope)
         : Node(EDeclType::Scope), Scope(scope) {
     }
 
     std::string print() override {
-        std::string out;
-        for (auto& s : Scope) out += s + "::";
-        return out;
+        return Node::join(Scope, "::");
     }
 };
 

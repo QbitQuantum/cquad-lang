@@ -124,6 +124,7 @@ private:
 
     Node* parseIdentifier(int exprKind = typeexpression::Unknown);
     Node* parseIdentifierExpr(int exprKind = typeexpression::Unknown);
+    Node* parseIdentifierComponent(int exprKind = typeexpression::Unknown);
     Node* parsePrimary();
     Node* parseExpression(int minPrec = 0, int exprKind = typeexpression::Expression);
     Node* parseCall(Node* callee);
@@ -214,21 +215,33 @@ Node* Parser::parseIdentifier(int exprKind) {
     if (isNot(TokenKind::IdentifierLiteral))
         raise("Expected identifier");
 
-    std::string name = consume(TokenKind::IdentifierLiteral).value;
-    std::vector<std::string> scope;
+    Node* first = parseIdentifierComponent(exprKind);
+
+    if (isNot(TokenKind::ScResOp))
+        return first;
+
+    std::vector<Node*> parts;
+    parts.push_back(first);
 
     while (match(TokenKind::ScResOp)) {
-        if (isNot(TokenKind::IdentifierLiteral))
-            raise("Expected identifier after '::'");
-        scope.push_back(std::move(name));
-        name = consume(TokenKind::IdentifierLiteral).value;
+        match(TokenKind::Template); // пропускаем дизамбигуатор временно
+        parts.push_back(parseIdentifierComponent(exprKind));
     }
+
+    return new NodeScope(std::move(parts));
+}
+
+Node* Parser::parseIdentifierComponent(int exprKind) {
+    if (isNot(TokenKind::IdentifierLiteral))
+        raise("Expected identifier");
+
+    std::string name = consume(TokenKind::IdentifierLiteral).value;
 
     Node* tmplArgs = nullptr;
     if (is(TokenKind::Less) && exprKind != typeexpression::Condition)
         tmplArgs = parseTemplateArgList();
 
-    return new NodeIdentifier(tmplArgs, name, new NodeScope(std::move(scope)));
+    return new NodeIdentifier(tmplArgs, std::move(name));
 }
 
 Node* Parser::parseIdentifierExpr(int exprKind) {
