@@ -160,7 +160,7 @@ public:
         if (!Initializer) return out;
         switch (InitKind) {
         case 0: break;
-        case 1: out += "{  }"; break;
+        case 1: out += Initializer->print(); break;
         case 2: out += " = " + Initializer->print(); break;
         case 3: out += Initializer->print(); break;
         case 4: out += " = " + Initializer->print(); break;
