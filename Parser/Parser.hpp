@@ -152,7 +152,7 @@ private:
 
     Node* parseVar();
     Node* parseVarType();
-    Node* parseVarDecl();
+    Node* parseVarDecl(bool IsPrimary = false);
     Node* parseVarDeclList();
 
     Node* parseClass();
@@ -284,7 +284,6 @@ Node* Parser::parseInitializerListBody() {
     if (isNot(TokenKind::RightBrace)) {
         elems.push_back(parseExpression());
         while (match(TokenKind::Comma)) {
-            if (is(TokenKind::RightBrace)) break;
             elems.push_back(parseExpression());
         }
     }
@@ -683,22 +682,9 @@ Node* Parser::parseFunctionParams() {
 
 Node* Parser::parseFunctionParam() {
     Node* type = parseType();
-    Node* name = is(TokenKind::IdentifierLiteral) ? parseIdentifier() : nullptr;
-
-    Node* def = nullptr;
-    int initKind = typeinitialization::Unknown;
-
-    if (match(TokenKind::Equal)) {
-        if (is(TokenKind::LeftBrace)) {
-            initKind = typeinitialization::CopyList;
-            def = parseInitializerList();
-        }
-        else {
-            initKind = typeinitialization::Copy;
-            def = parseExpression();
-        }
-    }
-    return new NodeDeclaration(name, def, initKind);
+    // Parse parameter name (optional)
+    Node* defaultValue = parseVarDecl(true);
+    return new NodeVarDeclarationList(type, defaultValue);
 }
 
 Node* Parser::parseFunctionBody() {
@@ -760,7 +746,7 @@ Node* Parser::parseVarType() {
     return parseType();
 }
 
-Node* Parser::parseVarDecl() {
+Node* Parser::parseVarDecl(bool IsPrimary) {
     if (isNot(TokenKind::IdentifierLiteral))
         raise("Expected identifier in declaration");
 
@@ -768,25 +754,38 @@ Node* Parser::parseVarDecl() {
     int initKind = typeinitialization::Unknown;
     Node* init = nullptr;
 
-    if (match(TokenKind::Equal)) {
-        if (is(TokenKind::LeftBrace)) {
-            initKind = typeinitialization::CopyList;
-            init = parseInitializerList();
-        }
-        else {
+    if (IsPrimary)
+    {
+        if (match(TokenKind::Equal)) {
             initKind = typeinitialization::Copy;
             init = parseExpression();
         }
+        else {
+            initKind = typeinitialization::Default;
+        }
     }
-    else if (match(TokenKind::LeftBrace)) {
-        initKind = is(TokenKind::RightBrace)
-            ? typeinitialization::Value
-            : typeinitialization::DirectList;
-        init = parseInitializerListBody();
-        expect(TokenKind::RightBrace, "Expected '}' after initializer list");
-    }
-    else {
-        initKind = typeinitialization::Default;
+    else
+    {
+        if (match(TokenKind::Equal)) {
+            if (is(TokenKind::LeftBrace)) {
+                initKind = typeinitialization::CopyList;
+                init = parseInitializerList();
+            }
+            else {
+                initKind = typeinitialization::Copy;
+                init = parseExpression();
+            }
+        }
+        else if (match(TokenKind::LeftBrace)) {
+            initKind = is(TokenKind::RightBrace)
+                ? typeinitialization::Value
+                : typeinitialization::DirectList;
+            init = parseInitializerListBody();
+            expect(TokenKind::RightBrace, "Expected '}' after initializer list");
+        }
+        else {
+            initKind = typeinitialization::Default;
+        }
     }
     return new NodeDeclaration(name, init, initKind);
 }
@@ -803,7 +802,6 @@ Node* Parser::parseVarDeclList() {
 
 Node* Parser::parseClass() {
     consume(TokenKind::Class);
-    Node* tmpl = nullptr;
     Node* name = parseClassName();
     Node* base = parseClassBase();
     Node* body = parseClassBody();

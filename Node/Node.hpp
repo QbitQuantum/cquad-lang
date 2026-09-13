@@ -157,16 +157,14 @@ public:
     std::string print() override {
         if (!Identifier) return "";
         std::string out = Identifier->print();
-
+        if (!Initializer) return out;
         switch (InitKind) {
         case 0: break;
         case 1: out += "{  }"; break;
-        case 2: out += " = " + (Initializer ? Initializer->print() : ""); break;
-        case 3: out += (Initializer ? Initializer->print() : ""); break;
-        case 4: out += " = " + (Initializer ? Initializer->print() : ""); break;
-        default:
-            if (Initializer) out += " = " + Initializer->print();
-            break;
+        case 2: out += " = " + Initializer->print(); break;
+        case 3: out += Initializer->print(); break;
+        case 4: out += " = " + Initializer->print(); break;
+        default: out += " = " + Initializer->print(); break;
         }
         return out;
     }
