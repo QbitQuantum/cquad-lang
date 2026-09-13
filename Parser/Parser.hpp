@@ -545,7 +545,7 @@ Node* Parser::wrapTemplate(Node* params, Node* decl) {
     case Node::EDeclType::Class:                return new NodeClassTemplate(params, decl);
     case Node::EDeclType::VarDeclarationList:   return new NodeVarDeclarationListTemplate(params, decl);
     }
-    expect(TokenKind::Greater, "Not template used: " + std::to_string(static_cast<int>(decl->DeclType)));
+    raise("Not template used: " + std::to_string(static_cast<int>(decl->DeclType)));
     return nullptr;
 }
 
