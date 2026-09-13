@@ -22,12 +22,9 @@ public:
         MemberCall,
         Scope,
         Using,
-        PointerSignature,
-        Pointer,
         ParameterList,
         Function,
         FunctionTemplate,
-        Lambda,
         Constructor,
         Destructor,
         New,
@@ -308,47 +305,6 @@ public:
     }
 };
 
-class NodePointerSignature : public Node
-{
-    Node* ReturnType = nullptr;
-    Node* ParameterList = nullptr;
-public:
-    NodePointerSignature(Node* returnType, Node* parameterList)
-        : Node(EDeclType::PointerSignature),
-        ReturnType(returnType), ParameterList(parameterList) {
-    }
-
-    std::string print() override {
-        if (!ReturnType || !ParameterList) return "";
-        return ReturnType->print() + ParameterList->print();
-    }
-
-    ~NodePointerSignature() override {
-        delete ReturnType;
-        delete ParameterList;
-    }
-};
-
-class NodePointer : public Node
-{
-    Node* Name = nullptr;
-    Node* Declaration = nullptr;
-public:
-    NodePointer(Node* name, Node* declaration)
-        : Node(EDeclType::Pointer), Name(name), Declaration(declaration) {
-    }
-
-    std::string print() override {
-        if (!Name || !Declaration) return "";
-        return "pointer " + Name->print() + " = " + Declaration->print();
-    }
-
-    ~NodePointer() override {
-        delete Name;
-        delete Declaration;
-    }
-};
-
 class NodeParameterList : public Node
 {
     std::vector<Node*> Params;
@@ -368,13 +324,14 @@ public:
 
 class NodeFunction : public Node
 {
+protected:
     Node* Type = nullptr;
     Node* Identifier = nullptr;
     Node* ParameterList = nullptr;
     Node* Body = nullptr;
 public:
-    NodeFunction(Node* type, Node* name, Node* parameterList, Node* body)
-        : Node(EDeclType::Function),
+    NodeFunction(Node* type, Node* name, Node* parameterList, Node* body, EDeclType eDeclType = EDeclType::Function)
+        : Node(eDeclType),
         Type(type), Identifier(name),
         ParameterList(parameterList), Body(body) {
     }
@@ -415,78 +372,39 @@ public:
     }
 };
 
-class NodeLambda : public Node
+class NodeConstructor : public NodeFunction
 {
-    Node* Type = nullptr;
-    Node* Identifier = nullptr;
-    Node* ParameterList = nullptr;
-    Node* Body = nullptr;
 public:
-    NodeLambda(Node* type, Node* name, Node* parameterList, Node* body)
-        : Node(EDeclType::Lambda),
-        Type(type), Identifier(name),
-        ParameterList(parameterList), Body(body) {
+    NodeConstructor(Node* type, Node* name, Node* parameterList, Node* body)
+        : NodeFunction(type, name, parameterList, body, EDeclType::Constructor) {
     }
 
     std::string print() override {
         if (!Type || !Identifier || !ParameterList) return "";
-        std::string out = "lambda " + Type->print() + " " +
-            Identifier->print() + ParameterList->print();
+        std::string out = Type->print() + " ^" + Identifier->print() + ParameterList->print();
         if (Body) out += Body->print();
         return out;
     }
 
-    ~NodeLambda() override {
-        delete Type;
-        delete Identifier;
-        delete ParameterList;
-        delete Body;
+    ~NodeConstructor() override { 
     }
 };
 
-class NodeConstructor : public Node
+class NodeDestructor : public NodeFunction
 {
-    Node* ParameterList = nullptr;
-    Node* Body = nullptr;
 public:
-    NodeConstructor(Node* parameterList, Node* body)
-        : Node(EDeclType::Constructor),
-        ParameterList(parameterList), Body(body) {
+    NodeDestructor(Node* type, Node* name, Node* parameterList, Node* body)
+        : NodeFunction(type, name, parameterList, body, EDeclType::Destructor) {
     }
 
     std::string print() override {
-        if (!ParameterList) return "";
-        std::string out = "constructor" + ParameterList->print();
-        if (Body) out += Body->print();
-        return out;
-    }
-
-    ~NodeConstructor() override {
-        delete ParameterList;
-        delete Body;
-    }
-};
-
-class NodeDestructor : public Node
-{
-    Node* ParameterList = nullptr;
-    Node* Body = nullptr;
-public:
-    NodeDestructor(Node* parameterList, Node* body)
-        : Node(EDeclType::Destructor),
-        ParameterList(parameterList), Body(body) {
-    }
-
-    std::string print() override {
-        if (!ParameterList) return "";
-        std::string out = "destructor" + ParameterList->print();
+        if (!Type || !Identifier) return "";
+        std::string out = Type->print() + " ~" + Identifier->print() + "()";
         if (Body) out += Body->print();
         return out;
     }
 
     ~NodeDestructor() override {
-        delete ParameterList;
-        delete Body;
     }
 };
 

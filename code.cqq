@@ -2,6 +2,9 @@
 template<typename A, int B = 3, template<typename C>>
 class CompilationContext
 {
+    void ^CompilationContext();
+    void ~CompilationContext();
+
     int labelCount = 10;
     IRInstruction* currentInst = nullptr;
     std::vector<int> stackFrameOffsets;

@@ -10,6 +10,13 @@
 #include "ParserError.hpp"
 #include "Node.hpp"
 
+namespace typefunction
+{
+    const int Function = 1;
+    const int Constructor = 2;
+    const int Destructor = 3;
+}
+
 namespace typescope
 {
     const int Unknown = -1;
@@ -592,6 +599,14 @@ Node* Parser::parseStatement(int scope) {
                 return expr;
             }
             break;
+        case TokenKind::Caret:
+        case TokenKind::Tilde:
+            if (scope == typescope::Class) {
+                restorePosition(saved);
+                delete type;
+                return parseFunction();
+            }
+            break;
         default: break;
         }
         delete type;
@@ -611,14 +626,34 @@ Node* Parser::parseStatement(int scope) {
 Node* Parser::parseFunction() {
     Node* returnType = parseType();
 
+    int typef = typefunction::Function;
+    switch (token())
+    {
+    case TokenKind::Caret:
+    case TokenKind::Tilde:
+        typef = token() == TokenKind::Caret ? typefunction::Constructor : typefunction::Destructor;
+        advance();
+        break;
+    default: break;
+    }
+
     if (isNot(TokenKind::IdentifierLiteral))
         raise("Expected function name");
     Node* name = parseIdentifier();
-
     Node* params = parseFunctionParams();
     Node* body = parseFunctionBody();
-
-    return new NodeFunction(returnType, name, params, body);
+    
+    Node* Stmt = nullptr;
+    switch (typef)
+    {
+    case typefunction::Constructor:
+        Stmt = new NodeConstructor(returnType, name, params, body); break;
+    case typefunction::Destructor:
+        Stmt = new NodeDestructor(returnType, name, params, body); break;
+    default:
+        Stmt = new NodeFunction(returnType, name, params, body); break;
+    }
+    return Stmt;
 }
 
 Node* Parser::parseFunctionParams() {
