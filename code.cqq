@@ -68,6 +68,11 @@ int main()
     int address = ctx->generateCode();
     std::print(address);
 
+    switch (address) {
+    case BAD_ALLOC:          address = ctx->generateCode(); break;
+    default:                 std::print(ctx->getDeadCode()); break;
+    }
+
     if (address == BAD_ALLOC)
     {
         int retries = 0;

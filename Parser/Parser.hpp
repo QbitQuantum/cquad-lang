@@ -1,4 +1,4 @@
-#ifndef PARSER_HPP
+﻿#ifndef PARSER_HPP
 #define PARSER_HPP
 #pragma once
 
@@ -150,6 +150,16 @@ private:
     Node* parseFunctionBody();
     Node* parseFunctionBlock();
 
+    Node* parseSwitch();
+    Node* parseSwitchCond();
+    Node* parseSwitchBody();
+    Node* parseSwitchSection();
+    Node* parseCase();
+    Node* parseCaseValue();
+    Node* parseCaseBody();
+    Node* parseDefaultCase();
+    Node* parseBreak();
+
     Node* parseVar();
     Node* parseVarType();
     Node* parseVarDecl(bool IsPrimary = false);
@@ -224,7 +234,7 @@ Node* Parser::parseIdentifier(int exprKind) {
     parts.push_back(first);
 
     while (match(TokenKind::ScResOp)) {
-        match(TokenKind::Template); // ���������� ������������� ��������
+        match(TokenKind::Template); // пропускаем дизамбигуатор временно
         parts.push_back(parseIdentifierComponent(exprKind));
     }
 
@@ -318,9 +328,12 @@ Node* Parser::parseIfBody() {
         return block;
     }
     NodeBlock* block = new NodeBlock();
-    Node* stmt = is(TokenKind::If)
-        ? parseCondition()
-        : parseStatement(typescope::Function);
+    Node* stmt = nullptr;
+    switch (token()) {
+    case TokenKind::If:     stmt = parseCondition(); break;
+    case TokenKind::Switch: stmt = parseSwitch();    break;
+    default:                stmt = parseStatement(typescope::Function); break;
+    }
     if (stmt) block->add(stmt);
     return block;
 }
@@ -706,11 +719,92 @@ Node* Parser::parseFunctionBlock() {
         case TokenKind::While:   stmt = parseWhile();     break;
         case TokenKind::Return:  stmt = parseReturn();    break;
         case TokenKind::Delete_: stmt = parseDelete();    break;
+        case TokenKind::Break:   stmt = parseBreak();     break;
+        case TokenKind::Switch:  stmt = parseSwitch();    break;
         default:                 stmt = parseStatement(typescope::Function); break;
         }
         if (stmt) block->add(stmt);
     }
     return block;
+}
+
+Node* Parser::parseSwitch() {
+    consume(TokenKind::Switch);
+    Node* cond = parseSwitchCond();
+    Node* body = parseSwitchBody();
+    return new NodeSwitch(cond, body);
+}
+
+Node* Parser::parseSwitchCond() {
+    expect(TokenKind::LeftParen, "Expected '(' after 'switch'");
+    Node* cond = parseExpression(0, typeexpression::Condition);
+    expect(TokenKind::RightParen, "Expected ')' after switch-condition");
+    return cond;
+}
+
+Node* Parser::parseSwitchBody() {
+    expect(TokenKind::LeftBrace, "Expected '{' after switch-condition");
+    NodeBlock* block = new NodeBlock();
+    while (!atEnd() && isNot(TokenKind::RightBrace)) {
+        Node* section = parseSwitchSection();
+        if (section) block->add(section);
+    }
+    expect(TokenKind::RightBrace, "Expected '}' after switch body");
+    return block;
+}
+
+Node* Parser::parseSwitchSection() {
+    if (is(TokenKind::Case))    return parseCase();
+    if (is(TokenKind::Default)) return parseDefaultCase();
+    return parseStatement(typescope::Function);
+}
+
+Node* Parser::parseCase() {
+    consume(TokenKind::Case);
+    Node* value = parseCaseValue();
+    expect(TokenKind::Colon, "Expected ':' after case value");
+    Node* body = parseCaseBody();
+    return new NodeCase(value, body);
+}
+
+Node* Parser::parseCaseValue() {
+    // case-значение — это константное выражение (обычно целое/символьное/строковое)
+    return parseExpression(0, typeexpression::Condition);
+}
+
+Node* Parser::parseCaseBody() {
+    NodeBlock* block = new NodeBlock();
+    while (!atEnd()
+        && isNot(TokenKind::Case)
+        && isNot(TokenKind::Default)
+        && isNot(TokenKind::RightBrace))
+    {
+        Node* stmt = nullptr;
+        switch (token()) {
+        case TokenKind::If:      stmt = parseCondition(); break;
+        case TokenKind::While:   stmt = parseWhile();     break;
+        case TokenKind::Switch:  stmt = parseSwitch();    break;
+        case TokenKind::Return:  stmt = parseReturn();    break;
+        case TokenKind::Delete_: stmt = parseDelete();    break;
+        case TokenKind::Break:   stmt = parseBreak();     break;
+        default:                 stmt = parseStatement(typescope::Function); break;
+        }
+        if (stmt) block->add(stmt);
+    }
+    return block;
+}
+
+Node* Parser::parseDefaultCase() {
+    consume(TokenKind::Default);
+    expect(TokenKind::Colon, "Expected ':' after 'default'");
+    Node* body = parseCaseBody();
+    return new NodeCaseDefault(body);
+}
+
+Node* Parser::parseBreak() {
+    consume(TokenKind::Break);
+    expect(TokenKind::Semicolon, "Expected ';' after 'break'");
+    return new NodeBreak();
 }
 
 Node* Parser::parseDeclaration() {

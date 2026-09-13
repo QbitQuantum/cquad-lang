@@ -46,6 +46,7 @@ public:
         Character,
         Boolean,
         Nullptr,
+        Break,
         Default,
         While,
         TryCatch,
@@ -61,6 +62,9 @@ public:
         TemplateTypeParam,
         TemplateValueParam,
         TemplateParameterInstantiationList,
+        Switch,
+        Case,
+        CaseDefault,
     };
 
     static std::string join(const std::vector<Node*>& nodes,
@@ -814,6 +818,13 @@ public:
     std::string print() override { return "nullptr"; }
 };
 
+class NodeBreak : public Node
+{
+public:
+    NodeBreak() : Node(EDeclType::Break) {}
+    std::string print() override { return "break"; }
+};
+
 class NodeDefault : public Node
 {
 public:
@@ -1095,4 +1106,66 @@ public:
     }
 };
 
+class NodeSwitch : public Node
+{
+    Node* Cond = nullptr;
+    Node* Body = nullptr;
+public:
+    NodeSwitch(Node* cond, Node* body)
+        : Node(EDeclType::Switch), Cond(cond), Body(body) {
+    }
+
+    std::string print() override {
+        if (!Cond) return "";
+        std::string out = "switch (" + Cond->print() + ")\n";
+        if (Body) out += Body->print();
+        return out;
+    }
+
+    ~NodeSwitch() override {
+        delete Cond;
+        delete Body;
+    }
+};
+
+class NodeCase : public Node
+{
+    Node* Value = nullptr;
+    Node* Body = nullptr;
+public:
+    NodeCase(Node* value, Node* body)
+        : Node(EDeclType::Case), Value(value), Body(body) {
+    }
+
+    std::string print() override {
+        if (!Value) return "";
+        std::string out = "case " + Value->print();
+        if (Body) out += ": " + Body->print();
+        return out;
+    }
+
+    ~NodeCase() override {
+        delete Value;
+        delete Body;
+    }
+};
+
+class NodeCaseDefault : public Node
+{
+    Node* Body = nullptr;
+public:
+    NodeCaseDefault(Node* body)
+        : Node(EDeclType::CaseDefault), Body(body) {
+    }
+
+    std::string print() override {
+        if (!Body) return "";
+        std::string out = "default: " + Body->print();
+        return out;
+    }
+
+    ~NodeCaseDefault() override {
+        delete Body;
+    }
+};
 #endif // NODE_HPP
