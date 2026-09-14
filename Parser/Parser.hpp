@@ -756,7 +756,8 @@ Node* Parser::parseSwitchBody() {
 Node* Parser::parseSwitchSection() {
     if (is(TokenKind::Case))    return parseCase();
     if (is(TokenKind::Default)) return parseDefaultCase();
-    return parseStatement(typescope::Function);
+    raise("Not correct token parse in switch section");
+    return nullptr;
 }
 
 Node* Parser::parseCase() {
@@ -774,22 +775,28 @@ Node* Parser::parseCaseValue() {
 
 Node* Parser::parseCaseBody() {
     NodeBlock* block = new NodeBlock();
-    while (!atEnd()
-        && isNot(TokenKind::Case)
-        && isNot(TokenKind::Default)
-        && isNot(TokenKind::RightBrace))
+    if (match(TokenKind::LeftBrace))
     {
-        Node* stmt = nullptr;
-        switch (token()) {
-        case TokenKind::If:      stmt = parseCondition(); break;
-        case TokenKind::While:   stmt = parseWhile();     break;
-        case TokenKind::Switch:  stmt = parseSwitch();    break;
-        case TokenKind::Return:  stmt = parseReturn();    break;
-        case TokenKind::Delete_: stmt = parseDelete();    break;
-        case TokenKind::Break:   stmt = parseBreak();     break;
-        default:                 stmt = parseStatement(typescope::Function); break;
+        while (!atEnd() && isNot(TokenKind::RightBrace))
+        {
+            Node* stmt = nullptr;
+            switch (token()) {
+            case TokenKind::If:      stmt = parseCondition(); break;
+            case TokenKind::While:   stmt = parseWhile();     break;
+            case TokenKind::Switch:  stmt = parseSwitch();    break;
+            case TokenKind::Return:  stmt = parseReturn();    break;
+            case TokenKind::Delete_: stmt = parseDelete();    break;
+            case TokenKind::Break:   stmt = parseBreak();     break;
+            default:                 stmt = parseStatement(typescope::Function); break;
+            }
+            if (stmt) block->add(stmt);
         }
-        if (stmt) block->add(stmt);
+        expect(TokenKind::RightBrace, "Expected '}' after case value");
+    }
+    else
+    {
+        block->add(parseStatement(typescope::Function));
+        block->add(parseBreak());
     }
     return block;
 }
