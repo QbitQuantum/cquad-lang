@@ -661,8 +661,6 @@ Node* Parser::parseFunction() {
     default: break;
     }
 
-    if (isNot(TokenKind::IdentifierLiteral))
-        raise("Expected function name");
     Node* name = parseIdentifier();
     Node* params = parseFunctionParams();
     Node* body = parseFunctionBody();
