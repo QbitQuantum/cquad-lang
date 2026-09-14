@@ -476,11 +476,11 @@ class NodeBlock : public Node
     std::vector<Node*> Elements;
 public:
     NodeBlock(const std::vector<Node*>& elements)
-        : Node(EDeclType::CaseBody), Elements(elements) {
+        : Node(EDeclType::Block), Elements(elements) {
     }
 
     std::string print() override {
-        return Node::join(Elements, ";\n");
+        return "{" + Node::join(Elements, ";\n") + "}";
     }
 
     ~NodeBlock() override {
