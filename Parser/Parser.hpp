@@ -153,7 +153,6 @@ private:
     Node* parseSwitch();
     Node* parseSwitchCond();
     Node* parseSwitchBody();
-    Node* parseSwitchSection();
     Node* parseCase();
     Node* parseCaseValue();
     Node* parseCaseBody();
@@ -322,20 +321,22 @@ Node* Parser::parseIfCond() {
 }
 
 Node* Parser::parseIfBody() {
+    std::vector<Node*> elem;
     if (match(TokenKind::LeftBrace)) {
-        Node* block = parseFunctionBlock();
+        elem.push_back(parseFunctionBlock());
         expect(TokenKind::RightBrace, "Expected '}' after if-body");
-        return block;
     }
-    NodeBlock* block = new NodeBlock();
-    Node* stmt = nullptr;
-    switch (token()) {
-    case TokenKind::If:     stmt = parseCondition(); break;
-    case TokenKind::Switch: stmt = parseSwitch();    break;
-    default:                stmt = parseStatement(typescope::Function); break;
+    else
+    {
+        Node* stmt = nullptr;
+        switch (token()) {
+        case TokenKind::If:     stmt = parseCondition(); break;
+        case TokenKind::Switch: stmt = parseSwitch();    break;
+        default:                stmt = parseStatement(typescope::Function); break;
+        }
+        if (stmt) elem.push_back(stmt);
     }
-    if (stmt) block->add(stmt);
-    return block;
+    return new NodeBlock(elem);
 }
 
 Node* Parser::parseElse() {
@@ -365,15 +366,13 @@ Node* Parser::parseWhileCond() {
 }
 
 Node* Parser::parseWhileBody() {
+    std::vector<Node*> elem;
     if (match(TokenKind::LeftBrace)) {
-        Node* body = parseFunctionBlock();
+        elem.push_back(parseFunctionBlock());
         expect(TokenKind::RightBrace, "Expected '}' after while-body");
-        return body;
     }
-    NodeBlock* block = new NodeBlock();
-    Node* stmt = parseStatement(typescope::Function);
-    if (stmt) block->add(stmt);
-    return block;
+    else elem.push_back(parseStatement(typescope::Function));
+    return new NodeBlock(elem);
 }
 
 Node* Parser::parseReturn() {
@@ -711,7 +710,7 @@ Node* Parser::parseFunctionBody() {
 }
 
 Node* Parser::parseFunctionBlock() {
-    NodeBlock* block = new NodeBlock();
+    std::vector<Node*> elem;
     while (!atEnd() && isNot(TokenKind::RightBrace)) {
         Node* stmt = nullptr;
         switch (token()) {
@@ -723,9 +722,9 @@ Node* Parser::parseFunctionBlock() {
         case TokenKind::Switch:  stmt = parseSwitch();    break;
         default:                 stmt = parseStatement(typescope::Function); break;
         }
-        if (stmt) block->add(stmt);
+        if (stmt) elem.push_back(stmt);
     }
-    return block;
+    return new NodeBlock(elem);
 }
 
 Node* Parser::parseSwitch() {
@@ -744,20 +743,18 @@ Node* Parser::parseSwitchCond() {
 
 Node* Parser::parseSwitchBody() {
     expect(TokenKind::LeftBrace, "Expected '{' after switch-condition");
-    NodeBlock* block = new NodeBlock();
+    std::vector<Node*> elem;
     while (!atEnd() && isNot(TokenKind::RightBrace)) {
-        Node* section = parseSwitchSection();
-        if (section) block->add(section);
+        Node* stmt = nullptr;
+        switch (token()) {
+        case TokenKind::Case:      stmt = parseCase(); break;
+        case TokenKind::Default:   stmt = parseDefaultCase();     break;
+        default:                   raise("Not correct token parse in switch section");
+        }
+        if (stmt) elem.push_back(stmt);
     }
     expect(TokenKind::RightBrace, "Expected '}' after switch body");
-    return block;
-}
-
-Node* Parser::parseSwitchSection() {
-    if (is(TokenKind::Case))    return parseCase();
-    if (is(TokenKind::Default)) return parseDefaultCase();
-    raise("Not correct token parse in switch section");
-    return nullptr;
+    return new NodeBlock(elem);
 }
 
 Node* Parser::parseCase() {
@@ -774,10 +771,10 @@ Node* Parser::parseCaseValue() {
 }
 
 Node* Parser::parseCaseBody() {
-    std::vector<Node*> Elem;
+    std::vector<Node*> elem;
     if (match(TokenKind::LeftBrace))
     {
-        NodeBlock* block = new NodeBlock();
+        std::vector<Node*> elem_block;
         while (!atEnd() && isNot(TokenKind::RightBrace))
         {
             Node* stmt = nullptr;
@@ -789,17 +786,17 @@ Node* Parser::parseCaseBody() {
             case TokenKind::Delete_: stmt = parseDelete();    break;
             default:                 stmt = parseStatement(typescope::Function); break;
             }
-            if (stmt) block->add(stmt);
+            if (stmt) elem_block.push_back(stmt);
         }
-        Elem.push_back(block);
+        elem.push_back(new NodeBlock(std::move(elem_block)));
         expect(TokenKind::RightBrace, "Expected '}' after case value");
     }
-    else Elem.push_back(parseStatement(typescope::Function));
+    else elem.push_back(parseStatement(typescope::Function));
     
     if (token() == TokenKind::Break)
-        Elem.push_back(parseBreak());
+        elem.push_back(parseBreak());
 
-    return new NodeCaseBody(std::move(Elem));
+    return new NodeCaseBody(std::move(elem));
 }
 
 Node* Parser::parseDefaultCase() {

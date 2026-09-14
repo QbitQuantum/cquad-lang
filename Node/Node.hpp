@@ -473,26 +473,21 @@ public:
 
 class NodeBlock : public Node
 {
-    std::vector<Node*> Statements;
+    std::vector<Node*> Elements;
 public:
-    NodeBlock() : Node(EDeclType::Block) {}
-
-    void add(Node* stmt) {
-        if (stmt) Statements.push_back(stmt);
+    NodeBlock(const std::vector<Node*>& elements)
+        : Node(EDeclType::CaseBody), Elements(elements) {
     }
 
     std::string print() override {
-        std::string out = "{\n";
-        for (auto* stmt : Statements)
-            if (stmt) out += " " + stmt->print() + ";\n";
-        out += "}";
-        return out;
+        return Node::join(Elements, ";\n");
     }
 
     ~NodeBlock() override {
-        for (auto* stmt : Statements) delete stmt;
+        for (auto* e : Elements) delete e;
     }
 };
+
 
 class NodeTemplateParameterInstantiationList : public Node
 {
