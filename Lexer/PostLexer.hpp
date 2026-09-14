@@ -31,6 +31,7 @@ private:
 	{TokenKind::Colon, &PostLexer::Colon},           // :
 	{TokenKind::Less, &PostLexer::Less},             // <
 	{TokenKind::Equal, &PostLexer::Equal},           // =
+	{TokenKind::Greater, &PostLexer::Greater},       // >
 	{TokenKind::Pipe, &PostLexer::Pipe},             // |
 	{TokenKind::Apostrophe, &PostLexer::Apostrophe}, // '
 	{TokenKind::Exclamation,&PostLexer::Exclamation},// !
@@ -255,6 +256,22 @@ Token PostLexer::Equal() /* = */ {
 	{
 		TLexToken.type = TokenKind::Equals;
 		TLexToken.value = "==";
+		PosBuffer++;
+	}
+
+	return TLexToken;
+}
+
+// Обработка символа ровно
+Token PostLexer::Greater() /* > */ {
+
+	Token TLexToken = GetCurrentToken();
+	TLexToken.type = TokenKind::Greater;
+
+	if (MatchToken(TokenKind::Equal, 1))
+	{
+		TLexToken.type = TokenKind::GreaterEqual;
+		TLexToken.value = ">=";
 		PosBuffer++;
 	}
 
