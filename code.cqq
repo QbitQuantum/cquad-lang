@@ -69,7 +69,7 @@ int main()
     std::print(address);
 
     switch (address) {
-    case BAD_ALLOC: { address = ctx->generateCode(); break; }
+    case BAD_ALLOC: { address = ctx->generateCode(); } break;
     default:                 std::print(ctx->getDeadCode()); break;
     }
 

@@ -64,6 +64,7 @@ public:
         TemplateParameterInstantiationList,
         Switch,
         Case,
+        CaseBody,
         CaseDefault,
     };
 
@@ -1147,6 +1148,23 @@ public:
     ~NodeCase() override {
         delete Value;
         delete Body;
+    }
+};
+
+class NodeCaseBody : public Node
+{
+    std::vector<Node*> Elements;
+public:
+    NodeCaseBody(const std::vector<Node*>& elements)
+        : Node(EDeclType::CaseBody), Elements(elements) {
+    }
+
+    std::string print() override {
+        return Node::join(Elements, "\n");
+    }
+
+    ~NodeCaseBody() override {
+        for (auto* e : Elements) delete e;
     }
 };
 

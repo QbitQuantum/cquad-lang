@@ -774,9 +774,10 @@ Node* Parser::parseCaseValue() {
 }
 
 Node* Parser::parseCaseBody() {
-    NodeBlock* block = new NodeBlock();
+    std::vector<Node*> Elem;
     if (match(TokenKind::LeftBrace))
     {
+        NodeBlock* block = new NodeBlock();
         while (!atEnd() && isNot(TokenKind::RightBrace))
         {
             Node* stmt = nullptr;
@@ -786,19 +787,19 @@ Node* Parser::parseCaseBody() {
             case TokenKind::Switch:  stmt = parseSwitch();    break;
             case TokenKind::Return:  stmt = parseReturn();    break;
             case TokenKind::Delete_: stmt = parseDelete();    break;
-            case TokenKind::Break:   stmt = parseBreak();     break;
             default:                 stmt = parseStatement(typescope::Function); break;
             }
             if (stmt) block->add(stmt);
         }
+        Elem.push_back(block);
         expect(TokenKind::RightBrace, "Expected '}' after case value");
     }
-    else
-    {
-        block->add(parseStatement(typescope::Function));
-        block->add(parseBreak());
-    }
-    return block;
+    else Elem.push_back(parseStatement(typescope::Function));
+    
+    if (token() == TokenKind::Break)
+        Elem.push_back(parseBreak());
+
+    return new NodeCaseBody(std::move(Elem));
 }
 
 Node* Parser::parseDefaultCase() {
