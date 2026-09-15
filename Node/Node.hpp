@@ -1206,7 +1206,7 @@ public:
 };
 
 // TODO: Разделить на 2 ноды: for и for range-based
-class NodeFor : public Node
+ class NodeFor : public Node
 {
 public:
     Node* Init = nullptr;
