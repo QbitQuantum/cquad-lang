@@ -190,13 +190,9 @@ private:
     Node* wrapTemplate(Node* params, Node* decl);
 
     Node* parseFor();
-    Node* parseForHeader();
     Node* parseForBody();
-
     Node* parseForDecl();
     Node* parseForType();
-    Node* parseForClassicDecl();
-    Node* parseForRangeDecl();
 
     void rejectTopLevelComma(TokenKind terminator);
 
