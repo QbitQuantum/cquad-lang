@@ -64,6 +64,31 @@ int CompilationContext::generateCode()
 
 int main()
 {
+    
+    for (;;) { }
+    
+    for (auto i = 0; i < n; ++i) int i = 3;
+    for (std::size_t i = 0; i < v.size(); ++i) { }
+    for (int i = n - 1; i >= 0; --i) { }
+    for (auto it = v.begin(); it != v.end(); ++it) { }
+    for (auto p = head; p != nullptr; p = p->next) { }
+
+    for (auto x : vec) { }
+    for (auto& x : vec) { }
+    for (const auto& x : vec) { }
+    for (auto&& x : vec) { }
+    for (T x : vec) { }
+    for (const T& x : vec) { }
+
+    for (auto [k, v] : map) { }
+    for (auto& [k, v] : map) { }
+    for (const auto& [k, v] : map) { }
+    for (auto&& [k, v] : map) { }
+
+    for (auto offset = compute(); auto x : vec) { }
+    for (auto limit = n; auto& x : vec) { }
+    for (auto tmp = init(); const auto& [k, v] : map) { }
+    
     CompilationContext* ctx = new CompilationContext();
     int address = ctx->generateCode();
     std::print(address);

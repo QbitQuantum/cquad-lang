@@ -66,6 +66,8 @@ public:
         Case,
         CaseBody,
         CaseDefault,
+        For,
+        StructuredBinding,
     };
 
     static std::string join(const std::vector<Node*>& nodes,
@@ -1181,4 +1183,86 @@ public:
         delete Body;
     }
 };
+
+class NodeStructuredBinding : public Node
+{
+public:
+    Node* Type = nullptr;
+    std::vector<Node*> Names;
+
+    NodeStructuredBinding(Node* type, const std::vector<Node*>& names)
+        : Node(EDeclType::StructuredBinding), Type(type), Names(std::move(names)) { 
+    }
+
+    ~NodeStructuredBinding() override {
+        delete Type;
+        for (Node* n : Names) delete n;
+    }
+
+    std::string print() override {
+        if (!Type)  return "";
+        return Type->print() + " [" + Node::join(Names) + "]";
+    }
+};
+
+// TODO: Разделить на 2 ноды: for и for range-based
+ class NodeFor : public Node
+{
+public:
+    Node* Init = nullptr;
+    Node* Condition = nullptr;
+    Node* Step = nullptr;
+    Node* Range = nullptr;
+    Node* Body = nullptr;
+    bool IsRange = false;
+
+    NodeFor(
+        Node* init,
+        Node* condition,
+        Node* step,
+        Node* range,
+        Node* body,
+        bool isRange)
+        : Node(EDeclType::For), Init(init),
+        Condition(condition),
+        Step(step),
+        Range(range),
+        Body(body),
+        IsRange(isRange)
+    {
+    }
+
+    ~NodeFor() override {
+        delete Init;
+        delete Condition;
+        delete Step;
+        delete Range;
+        delete Body;
+    }
+
+    std::string print() override {
+        std::string result = "for (";
+
+        if (IsRange) {
+            if (Init) {
+                result += Init->print();
+            }
+            if (Range) {
+                result += " : " + Range->print();
+            }
+        }
+        else {
+            if (Init) result += Init->print();
+            result += "; ";
+            if (Condition) result += Condition->print();
+            result += "; ";
+            if (Step) result += Step->print();
+        }
+
+        result += ") ";
+        if (Body) result += Body->print();
+        return result;
+    }
+};
+
 #endif // NODE_HPP
