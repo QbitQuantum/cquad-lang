@@ -377,13 +377,12 @@ Node* Parser::parseWhileCond() {
 }
 
 Node* Parser::parseWhileBody() {
-    std::vector<Node*> elem;
     if (match(TokenKind::LeftBrace)) {
-        elem.push_back(parseFunctionBlock());
+        Node* Block = parseFunctionBlock();
         expect(TokenKind::RightBrace, "Expected '}' after while-body");
+        return Block;
     }
-    else elem.push_back(parseStatement(typescope::Function));
-    return new NodeBlock(elem);
+    return parseStatement(typescope::Function);
 }
 
 Node* Parser::parseReturn() {
