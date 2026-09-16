@@ -1113,8 +1113,6 @@ Node* Parser::parseForDecl()
     int initKind = typeinitialization::Default;
 
     if (match(TokenKind::Equal)) {
-        // Лямбда в init всё равно не будет разобрана parseExpression(),
-        // поскольку выражение начинается с '['.
         rejectTopLevelComma(TokenKind::Semicolon);
 
         initKind = typeinitialization::Copy;
@@ -1149,11 +1147,7 @@ Node* Parser::parseFor()
 
     expect(TokenKind::LeftParen, "Expected '(' after 'for'");
 
-    // ------------------------------------------------------------
-    // Бесконечный цикл:
-    //
     // for (;;) { }
-    // ------------------------------------------------------------
     if (match(TokenKind::Semicolon)) {
         expect(TokenKind::Semicolon, "Only 'for (;;)' is allowed with empty initialization");
         expect(TokenKind::RightParen, "Expected ')' after for-header");
@@ -1200,7 +1194,6 @@ Node* Parser::parseFor()
 
     expect(TokenKind::Semicolon, "Expected ';' or ':' after for declaration");
 
-    // C++20 init + range:
     // for (auto offset = compute(); auto x : vec)
     size_t pos = savePosition();
     try {
@@ -1229,7 +1222,6 @@ Node* Parser::parseFor()
         restorePosition(pos);
     }
 
-    // Классический цикл:
     // for (auto i = 0; i < n; ++i)
     if (is(TokenKind::Semicolon)) {
         delete firstDecl;
