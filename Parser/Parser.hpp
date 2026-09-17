@@ -479,7 +479,7 @@ Node* Parser::parseType() {
 
 Node* Parser::parsePrimary() {
     UnaryOperand unary = UnaryOperand::Unknown;
-    if (tok::IsUnaryOperator(token())) {
+    if (tok::IsPrefixUnaryOperator(token())) {
         unary = UnOparand::getUnaryOperand(token());
         consume(token());
     }
@@ -512,7 +512,16 @@ Node* Parser::parsePrimary() {
         break;
     default: raise("Unexpected token in primary expression");
     }
-    return unary == UnaryOperand::Unknown ? right : new NodeUnaryOp(unary, right);
+
+    if (unary != UnaryOperand::Unknown)
+        right = new NodeUnaryOp(unary, right);
+
+    if (tok::IsPostfixUnaryOperator(token())) {
+        auto rUnary = UnOparand::getUnaryOperand(token());
+        consume(token());
+        right = new NodeUnaryOp(rUnary, right, true);
+    }
+    return right;
 }
 
 Node* Parser::parseTemplateParam() {
@@ -586,6 +595,14 @@ Node* Parser::parseTemplateArgList() {
 Node* Parser::parseStatement(int scope) {
     size_t saved = savePosition();
 
+    if (token() == TokenKind::Inc || token() == TokenKind::Dec)
+    {
+        restorePosition(saved);
+        Node* Stmt = parsePrimary();
+        expect(TokenKind::Semicolon, "Expected ';' after expression");
+        return Stmt;
+    }
+
     Node* type = nullptr;
     bool typeOk = false;
     try { type = parseType(); typeOk = true; }
@@ -607,6 +624,16 @@ Node* Parser::parseStatement(int scope) {
             delete type;
             return parseVar();
         }
+        case TokenKind::Inc:
+        case TokenKind::Dec:
+            if (scope == typescope::Function) {
+                restorePosition(saved);
+                delete type;
+                Node* Stmt = parsePrimary();
+                expect(TokenKind::Semicolon, "Expected ';' after expression");
+                return Stmt;
+            }
+            break;
         case TokenKind::Equal:
             if (scope == typescope::Function) {
                 restorePosition(saved);

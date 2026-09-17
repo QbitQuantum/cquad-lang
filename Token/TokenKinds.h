@@ -297,6 +297,30 @@ namespace tok
         return false;
     }
 
+    bool static IsPrefixUnaryOperator(TokenKind Kind) {
+        switch (Kind) {
+        case TokenKind::Minus:
+        case TokenKind::Plus:
+        case TokenKind::Dec:
+        case TokenKind::Inc:
+        case TokenKind::Asterisk:
+        case TokenKind::Exclamation:
+        case TokenKind::Tilde:
+        case TokenKind::Ampersand:
+            return true;
+        }
+        return false;
+    }
+
+    bool static IsPostfixUnaryOperator(TokenKind Kind) {
+        switch (Kind) {
+        case TokenKind::Inc:
+        case TokenKind::Dec:
+            return true;
+        }
+        return false;
+    }
+
     // Для бинарных операторов
     int static GetBinaryOperatorPriority(TokenKind Kind) {
         switch (Kind) {

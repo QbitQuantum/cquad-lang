@@ -100,6 +100,9 @@ int main()
 
     if (address == BAD_ALLOC)
     {
+        int stack = 0;
+        stack++; ++stack;
+        ++stack++;
         int retries = 0;
         while (retries < 3)
         {

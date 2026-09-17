@@ -908,14 +908,17 @@ class NodeUnaryOp : public Node
 {
     UnaryOperand Operand = UnaryOperand::Unknown;
     Node* Right = nullptr;
+    bool IsLeft = false;
 public:
-    NodeUnaryOp(const UnaryOperand& operand, Node* right)
-        : Node(EDeclType::UnaryOp), Operand(operand), Right(right) {
+    NodeUnaryOp(const UnaryOperand& operand, Node* right, bool isLeft = false)
+        : Node(EDeclType::UnaryOp), Operand(operand), Right(right), IsLeft(isLeft) {
     }
 
     std::string print() override {
         if (!Right) return "";
-        return UnOparand::opToString(Operand) + Right->print();
+        auto operand = UnOparand::opToString(Operand);
+        if (IsLeft) return Right->print() + operand;
+        return operand + Right->print();
     }
 
     ~NodeUnaryOp() override {
