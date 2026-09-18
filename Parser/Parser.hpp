@@ -93,7 +93,7 @@ class Parser
 private:
     TokenStream stream;
     std::vector<Node*> ast;
-    std::vector<Node*&> ambiguousNodes;
+    std::vector<Node*> ambiguousNodes;
 
     size_t streamSize() const noexcept { return stream.Size(); }
     bool   atEnd()      const noexcept { return stream.eof(); }
@@ -213,7 +213,7 @@ public:
     }
 
     const std::vector<Node*>& GetAst() const { return ast; }
-    const std::vector<Node*&>& GetAmbiguousNodes() const { return ambiguousNodes; }
+    const std::vector<Node*>& GetAmbiguousNodes() const { return ambiguousNodes; }
 };
 
 Node* Parser::parseTopLevel()
