@@ -131,7 +131,6 @@ private:
     Node* parseCall();
     Node* parseCall(Node* callee);
     Node* parseIndex(Node* callee);
-    Node* parseUnary(Node* callee);
 
     Node* parseInitializerList();
     Node* parseInitializerListBody();
@@ -358,12 +357,6 @@ Node* Parser::parseIndex(Node* callee) {
     }
     expect(TokenKind::RightBracket, "Expected ']' after index expression");
     return new NodeIndexAccess(callee, index);
-}
-
-Node* Parser::parseUnary(Node* callee) {
-    auto rUnary = UnOparand::getUnaryOperand(token());
-    consume(token());
-    return new NodeUnaryOp(rUnary, callee, true);
 }
 
 Node* Parser::parseInitializerList() {
