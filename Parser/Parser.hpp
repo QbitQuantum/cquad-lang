@@ -136,12 +136,7 @@ private:
     Node* parseInitializerList();
     Node* parseInitializerListBody();
 
-    Node* parseInteger();
-    Node* parseFloating();
-    Node* parseBoolean();
-    Node* parseString();
-    Node* parseCharacter();
-    Node* parseNullptr();
+    Node* parseValue();
     Node* parseDefault();
     Node* parseNew();
     Node* parseDelete();
@@ -276,29 +271,20 @@ Node* Parser::parsePrimary() {
     switch (token()) {
     case TokenKind::New:            right = parseNew();        break;
     case TokenKind::Delete_:        right = parseDelete();     break;
-    case TokenKind::NullptrLiteral: right = parseNullptr();    break;
     case TokenKind::Default:        right = parseDefault();    break;
     case TokenKind::IdentifierLiteral:
         right = parseIdentifier(typeexpression::Condition); break;
-    case TokenKind::IntegerLiteral:
-    case TokenKind::HexLiteral:
-    case TokenKind::BinaryLiteral:  right = parseInteger();    break;
-    case TokenKind::FloatLiteral:
-    case TokenKind::DoubleLiteral:
-    case TokenKind::LongDoubleLiteral: right = parseFloating(); break;
-    case TokenKind::TrueLiteral:
-    case TokenKind::FalseLiteral:   right = parseBoolean();    break;
-    case TokenKind::StringLiteral:
-    case TokenKind::WStringLiteral: right = parseString();     break;
-    case TokenKind::CharLiteral:
-    case TokenKind::WCharLiteral:   right = parseCharacter();  break;
     case TokenKind::LeftBrace:      right = parseInitializerList(); break;
     case TokenKind::LeftParen:
         consume(TokenKind::LeftParen);
         right = parseExpression();
         expect(TokenKind::RightParen, "Expected ')'");
         break;
-    default: raise("Unexpected token in primary expression");
+    default:
+    {
+        if (tok::isLiteral(token())) right = parseValue();
+        else raise("Unexpected token in primary expression");
+    }
     }
 
     if (unary != UnaryOperand::Unknown)
@@ -498,21 +484,34 @@ Node* Parser::parseDelete() {
     return new NodeDelete(expr, size);
 }
 
-Node* Parser::parseNullptr() {
-    consume(TokenKind::NullptrLiteral);
-    return new NodeNullptr();
+Node* Parser::parseValue() {
+    Token ValueToken = consume(token());
+    std::string raw_value = ValueToken.value;
+    TokenKind raw_type = ValueToken.type;
+    Node* right = nullptr;
+    switch (raw_type) {
+    case TokenKind::IntegerLiteral:
+    case TokenKind::HexLiteral:
+    case TokenKind::BinaryLiteral:  right = new NodeInteger(raw_value);    break;
+    case TokenKind::FloatLiteral:
+    case TokenKind::DoubleLiteral:
+    case TokenKind::LongDoubleLiteral: right = new NodeFloating(raw_value);    break;
+    case TokenKind::TrueLiteral:
+    case TokenKind::FalseLiteral:   right = new NodeBoolean(raw_value);    break;
+    case TokenKind::StringLiteral:
+    case TokenKind::WStringLiteral: right = new NodeString(raw_value);    break;
+    case TokenKind::CharLiteral:
+    case TokenKind::WCharLiteral:   right = new NodeCharacter(raw_value);    break;
+    case TokenKind::NullptrLiteral: right = new NodeNullptr();    break;
+    default: raise("Unexpected token in literal");
+    }
+    return right;
 }
 
 Node* Parser::parseDefault() {
     consume(TokenKind::Default);
     return new NodeDefault();
 }
-
-Node* Parser::parseInteger() { return new NodeInteger(consume(token()).value); }
-Node* Parser::parseFloating() { return new NodeFloating(consume(token()).value); }
-Node* Parser::parseBoolean() { return new NodeBoolean(consume(token()).value); }
-Node* Parser::parseString() { return new NodeString(consume(token()).value); }
-Node* Parser::parseCharacter() { return new NodeCharacter(consume(token()).value); }
 
 Node* Parser::parseArraySize() {
     expect(TokenKind::LeftBracket, "Expected '[' for CArray");
@@ -521,7 +520,7 @@ Node* Parser::parseArraySize() {
     case TokenKind::IdentifierLiteral: stmt = parseExpression(); break;
     case TokenKind::IntegerLiteral:
     case TokenKind::HexLiteral:
-    case TokenKind::BinaryLiteral:     stmt = parseInteger();    break;
+    case TokenKind::BinaryLiteral:     stmt = parseValue();    break;
     default: raise("Not correct token for array size");
     }
     expect(TokenKind::RightBracket, "Expected ']' for CArray");

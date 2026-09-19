@@ -460,6 +460,27 @@ namespace tok
             || k == TokenKind::BlockComment;
     }
 
+    bool static isLiteral(TokenKind Kind) {
+        switch (Kind) {
+        case TokenKind::IntegerLiteral:
+        case TokenKind::HexLiteral:
+        case TokenKind::BinaryLiteral:
+        case TokenKind::FloatLiteral:
+        case TokenKind::DoubleLiteral:
+        case TokenKind::LongDoubleLiteral:
+        case TokenKind::TrueLiteral:
+        case TokenKind::FalseLiteral:
+        case TokenKind::StringLiteral:
+        case TokenKind::WStringLiteral:
+        case TokenKind::CharLiteral:
+        case TokenKind::WCharLiteral:
+        case TokenKind::NullptrLiteral:
+            return true;
+        default:
+            return false;
+        }
+    }
+
 #define GENERATE_NAME(name) \
 case TokenKind::name: return #name; \
 
