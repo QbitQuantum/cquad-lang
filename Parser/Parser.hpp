@@ -1225,10 +1225,7 @@ Node* Parser::parseFor()
 
         Node* range = parseExpression();
 
-        expect(
-            TokenKind::RightParen,
-            "Expected ')' after range-for expression"
-        );
+        expect(TokenKind::RightParen, "Expected ')' after range-for expression");
 
         Node* body = parseForBody();
 
