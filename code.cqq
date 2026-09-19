@@ -119,5 +119,6 @@ int main()
         std::print(ctx->getStackSize());
     }
     delete ctx;
+    OS[address];
     return 0;
 }

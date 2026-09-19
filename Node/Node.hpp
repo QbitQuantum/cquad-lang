@@ -30,6 +30,7 @@ public:
         New,
         Delete,
         Call,
+        IndexAccess,
         Block,
         BlockClass,
         BaseClass,
@@ -471,6 +472,20 @@ public:
         delete Name;
         for (auto* a : Args) delete a;
     }
+};
+
+class NodeIndexAccess : public Node {
+public:
+    Node* base = nullptr;
+    Node* index = nullptr;
+    NodeIndexAccess(Node* base, Node* index)
+        : Node(Node::EDeclType::IndexAccess), base(base), index(index) {
+    }
+    std::string print() override {
+        if (!base || !index) return "";
+        return base->print() + "[" + index->print() + "]";
+    }
+    ~NodeIndexAccess() override { delete base; delete index; }
 };
 
 class NodeBlock : public Node

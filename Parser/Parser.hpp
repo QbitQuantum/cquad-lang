@@ -128,7 +128,11 @@ private:
     Node* parseIdentifierComponent(int exprKind = typeexpression::Unknown);
     Node* parsePrimary();
     Node* parseExpression(int minPrec = 0, int exprKind = typeexpression::Expression);
+
     Node* parseCall(Node* callee);
+    Node* parseIndex(Node* callee);
+    Node* parseUnary(Node* callee);
+
     Node* parseInitializerList();
     Node* parseInitializerListBody();
 
@@ -311,10 +315,22 @@ Node* Parser::parsePrimary() {
     if (unary != UnaryOperand::Unknown)
         right = new NodeUnaryOp(unary, right);
 
-    if (tok::IsPostfixUnaryOperator(token())) {
-        auto rUnary = UnOparand::getUnaryOperand(token());
-        consume(token());
-        right = new NodeUnaryOp(rUnary, right, true);
+    while (true) {
+        if (token() == TokenKind::LeftBracket) {
+            right = parseIndex(right);
+            continue;
+        }
+        if (token() == TokenKind::LeftParen) {
+            right = parseCall(right);
+            continue;
+        }
+        if (tok::IsPostfixUnaryOperator(token())) {
+            auto rUnary = UnOparand::getUnaryOperand(token());
+            consume(token());
+            right = new NodeUnaryOp(rUnary, right, true);
+            continue;
+        }
+        break;
     }
     return right;
 }
@@ -334,6 +350,35 @@ Node* Parser::parseExpression(int minPrec, int exprKind) {
         left = new NodeBinaryOp(BinOparand::getBinaryOperand(op), left, right);
     }
     return left;
+}
+
+Node* Parser::parseCall(Node* callee) {
+    expect(TokenKind::LeftParen, "Expected '(' after Identifier");
+
+    std::vector<Node*> args;
+    if (isNot(TokenKind::RightParen)) {
+        args.push_back(parseExpression());
+        while (match(TokenKind::Comma))
+            args.push_back(parseExpression());
+    }
+    expect(TokenKind::RightParen, "Expected ')'");
+    return new NodeCall(callee, args);
+}
+
+Node* Parser::parseIndex(Node* callee) {
+    expect(TokenKind::LeftBracket, "Expected '[' for index expression");
+    Node* index = nullptr;
+    if (isNot(TokenKind::RightBracket)) {
+        index = parseExpression();
+    }
+    expect(TokenKind::RightBracket, "Expected ']' after index expression");
+    return new NodeIndexAccess(callee, index);
+}
+
+Node* Parser::parseUnary(Node* callee) {
+    auto rUnary = UnOparand::getUnaryOperand(token());
+    consume(token());
+    return new NodeUnaryOp(rUnary, callee, true);
 }
 
 Node* Parser::parseInitializerList() {
@@ -470,24 +515,11 @@ Node* Parser::parseBoolean() { return new NodeBoolean(consume(token()).value); }
 Node* Parser::parseString() { return new NodeString(consume(token()).value); }
 Node* Parser::parseCharacter() { return new NodeCharacter(consume(token()).value); }
 
-Node* Parser::parseCall(Node* callee) {
-    expect(TokenKind::LeftParen, "Expected '(' after Identifier");
-
-    std::vector<Node*> args;
-    if (isNot(TokenKind::RightParen)) {
-        args.push_back(parseExpression());
-        while (match(TokenKind::Comma))
-            args.push_back(parseExpression());
-    }
-    expect(TokenKind::RightParen, "Expected ')'");
-    return new NodeCall(callee, args);
-}
-
 Node* Parser::parseArraySize() {
     expect(TokenKind::LeftBracket, "Expected '[' for CArray");
     Node* stmt = nullptr;
     switch (token()) {
-    case TokenKind::IdentifierLiteral: stmt = parseIdentifier(); break;
+    case TokenKind::IdentifierLiteral: stmt = parseExpression(); break;
     case TokenKind::IntegerLiteral:
     case TokenKind::HexLiteral:
     case TokenKind::BinaryLiteral:     stmt = parseInteger();    break;
@@ -630,15 +662,19 @@ Node* Parser::parseStatement(int scope) {
     }
 
     switch (token()) {
-    case TokenKind::IdentifierLiteral: {
-        Node* name = parseIdentifier();
-        TokenKind next = token();
-        delete name;
-
-        if (next == TokenKind::LeftParen) {
-            restorePosition(saved);
-            delete type;
-            return parseFunction();
+    case TokenKind::IdentifierLiteral:
+    case TokenKind::LeftBrace:
+    {
+        if (token() == TokenKind::IdentifierLiteral)
+        {
+            Node* name = parseIdentifier();
+            TokenKind next = token();
+            delete name;
+            if (next == TokenKind::LeftParen) {
+                restorePosition(saved);
+                delete type;
+                return parseFunction();
+            }
         }
         restorePosition(saved);
         delete type;
@@ -653,19 +689,6 @@ Node* Parser::parseStatement(int scope) {
             return decl;
         }
         break;
-    case TokenKind::LeftBrace:
-        restorePosition(saved);
-        delete type;
-        return parseVar();
-    case TokenKind::LeftParen:
-        if (scope == typescope::Function) {
-            restorePosition(saved);
-            delete type;
-            Node* expr = parseIdentifierExpr();
-            expect(TokenKind::Semicolon, "Expected ';' after expression");
-            return expr;
-        }
-        break;
     case TokenKind::Caret:
     case TokenKind::Tilde:
         if (scope == typescope::Class) {
@@ -678,14 +701,9 @@ Node* Parser::parseStatement(int scope) {
     }
     restorePosition(saved);
     delete type;
-    if (is(TokenKind::IdentifierLiteral)) {
-        Node* expr = parseIdentifierExpr();
-        expect(TokenKind::Semicolon, "Expected ';' after expression");
-        return expr;
-    }
-
-    raise("Unrecognized statement");
-    return nullptr;
+    Node* Stmt = parseExpression();
+    expect(TokenKind::Semicolon, "Expected ';' after expression");
+    return Stmt;
 }
 
 Node* Parser::parseFunction() {
