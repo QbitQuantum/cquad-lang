@@ -124,11 +124,11 @@ private:
     Node* parseDeclarationPrimary();
 
     Node* parseIdentifier(int exprKind = typeexpression::Unknown);
-    Node* parseIdentifierExpr(int exprKind = typeexpression::Unknown);
-    Node* parseIdentifierComponent(int exprKind = typeexpression::Unknown);
+    Node* parseIdentifierScope(int exprKind = typeexpression::Unknown);
     Node* parsePrimary();
     Node* parseExpression(int minPrec = 0, int exprKind = typeexpression::Expression);
 
+    Node* parseCall();
     Node* parseCall(Node* callee);
     Node* parseIndex(Node* callee);
     Node* parseUnary(Node* callee);
@@ -236,7 +236,7 @@ Node* Parser::parseIdentifier(int exprKind) {
     if (isNot(TokenKind::IdentifierLiteral))
         raise("Expected identifier");
 
-    Node* first = parseIdentifierComponent(exprKind);
+    Node* first = parseIdentifierScope(exprKind);
 
     if (isNot(TokenKind::ScResOp))
         return first;
@@ -246,13 +246,13 @@ Node* Parser::parseIdentifier(int exprKind) {
 
     while (match(TokenKind::ScResOp)) {
         match(TokenKind::Template); // пропускаем дизамбигуатор временно
-        parts.push_back(parseIdentifierComponent(exprKind));
+        parts.push_back(parseIdentifierScope(exprKind));
     }
 
     return new NodeScope(std::move(parts));
 }
 
-Node* Parser::parseIdentifierComponent(int exprKind) {
+Node* Parser::parseIdentifierScope(int exprKind) {
     if (isNot(TokenKind::IdentifierLiteral))
         raise("Expected identifier");
 
@@ -263,17 +263,6 @@ Node* Parser::parseIdentifierComponent(int exprKind) {
         tmplArgs = parseTemplateArgList();
 
     return new NodeIdentifier(tmplArgs, std::move(name));
-}
-
-Node* Parser::parseIdentifierExpr(int exprKind) {
-    Node* expr = parseIdentifier(exprKind);
-    if (is(TokenKind::LeftParen))
-        expr = parseCall(expr);
-    if (is(TokenKind::Dot) || is(TokenKind::Arrow)) {
-        bool arrow = is(TokenKind::Arrow); advance();
-        expr = new NodeMemberCall(expr, parseIdentifierExpr(exprKind), arrow);
-    }
-    return expr;
 }
 
 Node* Parser::parsePrimary() {
@@ -290,7 +279,7 @@ Node* Parser::parsePrimary() {
     case TokenKind::NullptrLiteral: right = parseNullptr();    break;
     case TokenKind::Default:        right = parseDefault();    break;
     case TokenKind::IdentifierLiteral:
-        right = parseIdentifierExpr(typeexpression::Condition); break;
+        right = parseIdentifier(typeexpression::Condition); break;
     case TokenKind::IntegerLiteral:
     case TokenKind::HexLiteral:
     case TokenKind::BinaryLiteral:  right = parseInteger();    break;
@@ -324,6 +313,11 @@ Node* Parser::parsePrimary() {
             right = parseCall(right);
             continue;
         }
+        if (is(TokenKind::Dot) || is(TokenKind::Arrow)) {
+            bool arrow = is(TokenKind::Arrow); advance();
+            right = new NodeMemberCall(right, parsePrimary(), arrow);
+            continue;
+        }
         if (tok::IsPostfixUnaryOperator(token())) {
             auto rUnary = UnOparand::getUnaryOperand(token());
             consume(token());
@@ -350,6 +344,11 @@ Node* Parser::parseExpression(int minPrec, int exprKind) {
         left = new NodeBinaryOp(BinOparand::getBinaryOperand(op), left, right);
     }
     return left;
+}
+
+Node* Parser::parseCall() {
+    Node* calle = parseIdentifier();
+    return parseCall(calle);
 }
 
 Node* Parser::parseCall(Node* callee) {
@@ -486,15 +485,15 @@ Node* Parser::parseNew() {
     consume(TokenKind::New);
     Node* size = nullptr;
     if (is(TokenKind::LeftBracket)) size = parseArraySize();
-    Node* expr = parseIdentifierExpr();
-    return new NodeNew(expr, size);
+    Node* call = parseCall();
+    return new NodeNew(call, size);
 }
 
 Node* Parser::parseDelete() {
     consume(TokenKind::Delete_);
     Node* size = nullptr;
     if (is(TokenKind::LeftBracket)) size = parseArraySize();
-    Node* expr = parseIdentifierExpr();
+    Node* expr = parseIdentifier();
     expect(TokenKind::Semicolon, "Expected ';' after delete statement");
     return new NodeDelete(expr, size);
 }
