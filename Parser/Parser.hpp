@@ -1211,14 +1211,7 @@ Node* Parser::parseFor()
 
         Node* body = parseForBody();
 
-        return new NodeFor(
-            nullptr,
-            nullptr,
-            nullptr,
-            nullptr,
-            body,
-            false
-        );
+        return new NodeFor(nullptr, nullptr, nullptr, nullptr, body, false);
     }
 
     // В этой реализации init обязан быть декларацией.
@@ -1239,14 +1232,7 @@ Node* Parser::parseFor()
 
         Node* body = parseForBody();
 
-        return new NodeFor(
-            firstDecl,
-            nullptr,
-            nullptr,
-            range,
-            body,
-            true
-        );
+        return new NodeFor(firstDecl, nullptr, nullptr, range, body, true);
     }
 
     expect(TokenKind::Semicolon, "Expected ';' or ':' after for declaration");
@@ -1262,22 +1248,12 @@ Node* Parser::parseFor()
             Node* range = parseExpression();
             expect(TokenKind::RightParen, "Expected ')' after range-for expression");
             Node* body = parseForBody();
-            return new NodeFor(
-                firstDecl,
-                rangeDecl,
-                nullptr,
-                range,
-                body,
-                true
-            );
+            return new NodeFor(firstDecl, rangeDecl, nullptr, range, body, true);
         }
-
         delete rangeDecl;
-        restorePosition(pos);
-    }
-    catch (...) {
-        restorePosition(pos);
-    }
+    } 
+    catch (...) { }
+    restorePosition(pos);
 
     // for (auto i = 0; i < n; ++i)
     if (is(TokenKind::Semicolon)) {
@@ -1288,10 +1264,7 @@ Node* Parser::parseFor()
     rejectTopLevelComma(TokenKind::Semicolon);
     Node* condition = parseExpression(0, typeexpression::Condition);
 
-    expect(
-        TokenKind::Semicolon,
-        "Expected ';' after for condition"
-    );
+    expect(TokenKind::Semicolon, "Expected ';' after for condition");
 
     if (is(TokenKind::RightParen)) {
         delete firstDecl;
@@ -1302,21 +1275,11 @@ Node* Parser::parseFor()
     rejectTopLevelComma(TokenKind::RightParen);
     Node* step = parseExpression();
 
-    expect(
-        TokenKind::RightParen,
-        "Expected ')' after for-header"
-    );
+    expect(TokenKind::RightParen, "Expected ')' after for-header");
 
     Node* body = parseForBody();
 
-    return new NodeFor(
-        firstDecl,
-        condition,
-        step,
-        nullptr,
-        body,
-        false
-    );
+    return new NodeFor(firstDecl, condition, step, nullptr, body, false);
 }
 
 #endif // PARSER_HPP
