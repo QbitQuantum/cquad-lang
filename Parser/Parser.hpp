@@ -141,6 +141,8 @@ private:
     Node* parseDelete();
 
     Node* parseType();
+    Node* parseTypeArray();
+
     Node* parseArraySize();
 
     Node* parseFunction();
@@ -227,22 +229,15 @@ Node* Parser::parseTopLevel()
 }
 
 Node* Parser::parseIdentifier(int exprKind) {
-    if (isNot(TokenKind::IdentifierLiteral))
-        raise("Expected identifier");
-
     Node* first = parseIdentifierScope(exprKind);
-
     if (isNot(TokenKind::ScResOp))
         return first;
-
     std::vector<Node*> parts;
     parts.push_back(first);
-
     while (match(TokenKind::ScResOp)) {
         match(TokenKind::Template); // пропускаем дизамбигуатор временно
         parts.push_back(parseIdentifierScope(exprKind));
     }
-
     return new NodeScope(std::move(parts));
 }
 
@@ -520,31 +515,31 @@ Node* Parser::parseArraySize() {
     return stmt;
 }
 
+Node* Parser::parseTypeArray() {
+    if (!is(TokenKind::LeftBracket)) return nullptr;
+    return parseArraySize();
+}
+
 Node* Parser::parseType() {
     Node* type = nullptr;
     Node* size = nullptr;
-    bool isConst = false;
     NodeType::EType eType = NodeType::EType::None;
 
+    bool isConst = match(TokenKind::Const);
     bool isAuto = match(TokenKind::Auto);
 
     if (!isAuto) {
-        if (match(TokenKind::Const)) isConst = true;
-
-        if (isNot(TokenKind::IdentifierLiteral))
-            raise("Expected identifier token");
-
         type = parseIdentifier();
-
-        if (is(TokenKind::LeftBracket)) size = parseArraySize();
-
-        switch (token()) {
-        case TokenKind::Asterisk:  consume(TokenKind::Asterisk);  eType = NodeType::EType::Pointer; break;
-        case TokenKind::Ampersand: consume(TokenKind::Ampersand); eType = NodeType::EType::Ref;     break;
-        case TokenKind::And:       consume(TokenKind::And);       eType = NodeType::EType::RValue;  break;
-        default: break;
-        }
+        size = parseTypeArray();
     }
+
+    switch (token()) {
+    case TokenKind::Asterisk:  advance();   eType = NodeType::EType::Pointer; break;
+    case TokenKind::Ampersand: advance();   eType = NodeType::EType::Ref;     break;
+    case TokenKind::And:       advance();   eType = NodeType::EType::RValue;  break;
+    default: break;
+    }
+
     return new NodeType(type, size, isConst, eType, isAuto);
 }
 
