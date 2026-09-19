@@ -193,9 +193,6 @@ private:
     Node* parseFor();
     Node* parseForBody();
     Node* parseForDecl();
-    Node* parseForType();
-
-    void rejectTopLevelComma(TokenKind terminator);
 
 public:
     Parser(const PostLexer& lexer) : Parser(lexer.GetBufferPostLexerToken()) {}
@@ -1032,100 +1029,9 @@ Node* Parser::parseClassBlock() {
     return new NodeBlockClass(fields);
 }
 
-void Parser::rejectTopLevelComma(TokenKind terminator)
-{
-    int parenDepth = 0;
-    int bracketDepth = 0;
-    int braceDepth = 0;
-
-    for (size_t i = 0;; ++i) {
-        TokenKind k = peek(i).type;
-
-        if (k == TokenKind::neof)
-            return;
-
-        switch (k) {
-        case TokenKind::LeftParen:
-            ++parenDepth;
-            break;
-
-        case TokenKind::RightParen:
-            if (parenDepth == 0 &&
-                bracketDepth == 0 &&
-                braceDepth == 0 &&
-                terminator == TokenKind::RightParen)
-                return;
-
-            if (parenDepth > 0)
-                --parenDepth;
-            break;
-
-        case TokenKind::LeftBracket:
-            ++bracketDepth;
-            break;
-
-        case TokenKind::RightBracket:
-            if (bracketDepth > 0)
-                --bracketDepth;
-            break;
-
-        case TokenKind::LeftBrace:
-            ++braceDepth;
-            break;
-
-        case TokenKind::RightBrace:
-            if (braceDepth > 0)
-                --braceDepth;
-            break;
-
-        case TokenKind::Comma:
-            if (parenDepth == 0 && bracketDepth == 0 && braceDepth == 0)
-                raise("Comma is not allowed in for-header expression");
-            break;
-
-        default:
-            break;
-        }
-
-        if (k == terminator &&
-            parenDepth == 0 &&
-            bracketDepth == 0 &&
-            braceDepth == 0)
-            return;
-    }
-}
-
-Node* Parser::parseForType()
-{
-    bool isConst = match(TokenKind::Const);
-    bool isAuto = match(TokenKind::Auto);
-
-    Node* typeName = nullptr;
-
-    if (!isAuto) {
-        if (isNot(TokenKind::IdentifierLiteral))
-            raise("Expected type in for declaration");
-
-        typeName = parseIdentifier();
-    }
-
-    NodeType::EType refKind = NodeType::EType::None;
-    if (match(TokenKind::Ampersand)) {
-        refKind = NodeType::EType::Ref;
-    }
-    else if (match(TokenKind::And)) {
-        refKind = NodeType::EType::RValue;
-    }
-    else if (match(TokenKind::Asterisk)) {
-        refKind = NodeType::EType::Pointer;
-    }
-    return new NodeType(typeName, nullptr, isConst, refKind, isAuto);
-}
-
-
 Node* Parser::parseForDecl()
 {
-    Node* type = parseForType();
+    Node* type = parseType();
 
     // Structured binding:
     if (match(TokenKind::LeftBracket)) {
@@ -1139,10 +1045,6 @@ Node* Parser::parseForDecl()
             names.push_back(parseIdentifier());
 
         expect(TokenKind::RightBracket, "Expected ']' after structured binding identifiers");
-
-        // По условию structured binding в init запрещён.
-        if (is(TokenKind::Equal))
-            raise("Structured binding with initializer is not allowed in for");
 
         return new NodeStructuredBinding(type, std::move(names));
     }
@@ -1158,18 +1060,8 @@ Node* Parser::parseForDecl()
     int initKind = typeinitialization::Default;
 
     if (match(TokenKind::Equal)) {
-        rejectTopLevelComma(TokenKind::Semicolon);
-
         initKind = typeinitialization::Copy;
         init = parseExpression();
-    }
-
-    // После одного declarator запятая запрещена.
-    if (is(TokenKind::Comma)) {
-        delete type;
-        delete name;
-        delete init;
-        raise("Only one variable declaration is allowed in for");
     }
 
     Node* declaration = new NodeDeclaration(name, init, initKind);
@@ -1209,8 +1101,6 @@ Node* Parser::parseFor()
     // for (auto x : vec)
     // for (auto& [k, v] : map)
     if (match(TokenKind::Colon)) {
-        rejectTopLevelComma(TokenKind::RightParen);
-
         Node* range = parseExpression();
 
         expect(TokenKind::RightParen, "Expected ')' after range-for expression");
@@ -1228,8 +1118,6 @@ Node* Parser::parseFor()
         Node* rangeDecl = parseForDecl();
 
         if (match(TokenKind::Colon)) {
-            rejectTopLevelComma(TokenKind::RightParen);
-
             Node* range = parseExpression();
             expect(TokenKind::RightParen, "Expected ')' after range-for expression");
             Node* body = parseForBody();
@@ -1240,13 +1128,6 @@ Node* Parser::parseFor()
     catch (...) { }
     restorePosition(pos);
 
-    // for (auto i = 0; i < n; ++i)
-    if (is(TokenKind::Semicolon)) {
-        delete firstDecl;
-        raise("Empty for condition is not allowed");
-    }
-
-    rejectTopLevelComma(TokenKind::Semicolon);
     Node* condition = parseExpression(0, typeexpression::Condition);
 
     expect(TokenKind::Semicolon, "Expected ';' after for condition");
@@ -1256,8 +1137,6 @@ Node* Parser::parseFor()
         delete condition;
         raise("Empty for step is not allowed");
     }
-
-    rejectTopLevelComma(TokenKind::RightParen);
     Node* step = parseExpression();
 
     expect(TokenKind::RightParen, "Expected ')' after for-header");
