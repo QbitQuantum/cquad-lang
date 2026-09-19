@@ -653,11 +653,24 @@ Node* Parser::parseStatement(int scope) {
     Node* type = parseType();
 
     if (tok::IsPostfixUnaryOperator(token())) {
+        if (scope == typescope::Function) {
+            restorePosition(saved);
+            delete type;
+            Node* Stmt = parseExpression();
+            expect(TokenKind::Semicolon, "Expected ';' after expression");
+            return Stmt;
+        }
+    }
+
+    if (tok::IsAssignmentOperator(token()))
+    {
+        if (scope == typescope::Class && !is(TokenKind::Equal))
+            raise("No correct token assignment in body class");
         restorePosition(saved);
         delete type;
-        Node* Stmt = parseExpression();
+        Node* decl = parseDeclaration();
         expect(TokenKind::Semicolon, "Expected ';' after expression");
-        return Stmt;
+        return decl;
     }
 
     switch (token()) {
@@ -679,15 +692,6 @@ Node* Parser::parseStatement(int scope) {
         delete type;
         return parseVar();
     }
-    case TokenKind::Equal:
-        if (scope == typescope::Function) {
-            restorePosition(saved);
-            delete type;
-            Node* decl = parseDeclaration();
-            expect(TokenKind::Semicolon, "Expected ';' after expression");
-            return decl;
-        }
-        break;
     case TokenKind::Caret:
     case TokenKind::Tilde:
         if (scope == typescope::Class) {

@@ -239,6 +239,61 @@ namespace tok
         return static_cast<TokenKind>(s);
     }
 
+    bool static IsAssignmentOperator(TokenKind Kind) {
+        switch (Kind) {
+        case TokenKind::Equal:
+        case TokenKind::PlusAssign:
+        case TokenKind::MinusAssign:
+        case TokenKind::DivAssign:
+        case TokenKind::MultAssign:
+        case TokenKind::ModAssign:
+        case TokenKind::AndAssign:
+        case TokenKind::OrAssign:
+        case TokenKind::XorAssign:
+        case TokenKind::ShlAssign:
+        case TokenKind::ShrAssign:
+            return true;
+        default:
+            return false;
+        }
+    }
+
+    bool static IsConditionalOperator(TokenKind Kind) {
+        switch (Kind) {
+            // Операторы сравнения
+        case TokenKind::Equals:        // ==
+        case TokenKind::NotEqual:      // !=
+        case TokenKind::Less:          // <
+        case TokenKind::Greater:       // >
+        case TokenKind::LessEqual:     // <=
+        case TokenKind::GreaterEqual:  // >=
+
+            // Логические операторы
+        case TokenKind::Or:            // ||
+        case TokenKind::And:           // &&
+
+            // Побитовые операторы
+        case TokenKind::Pipe:          // |
+        case TokenKind::Caret:         // ^
+        case TokenKind::Ampersand:     // &
+
+            // Операторы сдвига
+        case TokenKind::Shl:           // <<
+        case TokenKind::Shr:           // >>
+
+            // Арифметические операторы
+        case TokenKind::Plus:          // +
+        case TokenKind::Minus:         // -
+        case TokenKind::Asterisk:      // *
+        case TokenKind::Slash:         // /
+        case TokenKind::Percent:       // %
+            return true;
+
+        default:
+            return false;
+        }
+    }
+
     bool static IsBinaryOperator(TokenKind Kind) {
         switch (Kind)
         {
@@ -388,42 +443,6 @@ namespace tok
 
         default:
             return 0; // Нет приоритета
-        }
-    }
-
-    bool static IsConditionalOperator(TokenKind Kind) {
-        switch (Kind) {
-            // Операторы сравнения
-        case TokenKind::Equals:        // ==
-        case TokenKind::NotEqual:      // !=
-        case TokenKind::Less:          // <
-        case TokenKind::Greater:       // >
-        case TokenKind::LessEqual:     // <=
-        case TokenKind::GreaterEqual:  // >=
-
-            // Логические операторы
-        case TokenKind::Or:            // ||
-        case TokenKind::And:           // &&
-
-            // Побитовые операторы
-        case TokenKind::Pipe:          // |
-        case TokenKind::Caret:         // ^
-        case TokenKind::Ampersand:     // &
-
-            // Операторы сдвига
-        case TokenKind::Shl:           // <<
-        case TokenKind::Shr:           // >>
-
-            // Арифметические операторы
-        case TokenKind::Plus:          // +
-        case TokenKind::Minus:         // -
-        case TokenKind::Asterisk:      // *
-        case TokenKind::Slash:         // /
-        case TokenKind::Percent:       // %
-            return true;
-
-        default:
-            return false;
         }
     }
 
