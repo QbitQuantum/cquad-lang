@@ -1088,28 +1088,19 @@ Node* Parser::parseFor()
     if (match(TokenKind::Semicolon)) {
         expect(TokenKind::Semicolon, "Only 'for (;;)' is allowed with empty initialization");
         expect(TokenKind::RightParen, "Expected ')' after for-header");
-
         Node* body = parseForBody();
-
-        return new NodeFor(nullptr, nullptr, nullptr, nullptr, body, false);
+        return new NodeFor(nullptr, nullptr, nullptr, body);
     }
 
-    // В этой реализации init обязан быть декларацией.
     Node* firstDecl = parseForDecl();
 
-    // Range-based:
-    // for (auto x : vec)
-    // for (auto& [k, v] : map)
+    // Range-based: for (auto x : vec)
     if (match(TokenKind::Colon)) {
         Node* range = parseExpression();
-
         expect(TokenKind::RightParen, "Expected ')' after range-for expression");
-
         Node* body = parseForBody();
-
-        return new NodeFor(firstDecl, nullptr, nullptr, range, body, true);
+        return new NodeForRange(nullptr, firstDecl, range, body);
     }
-
     expect(TokenKind::Semicolon, "Expected ';' or ':' after for declaration");
 
     // for (auto offset = compute(); auto x : vec)
@@ -1121,15 +1112,14 @@ Node* Parser::parseFor()
             Node* range = parseExpression();
             expect(TokenKind::RightParen, "Expected ')' after range-for expression");
             Node* body = parseForBody();
-            return new NodeFor(firstDecl, rangeDecl, nullptr, range, body, true);
+            return new NodeForRange(firstDecl, rangeDecl, range, body);
         }
         delete rangeDecl;
-    } 
-    catch (...) { }
+    }
+    catch (...) {}
     restorePosition(pos);
 
     Node* condition = parseExpression(0, typeexpression::Condition);
-
     expect(TokenKind::Semicolon, "Expected ';' after for condition");
 
     if (is(TokenKind::RightParen)) {
@@ -1137,13 +1127,12 @@ Node* Parser::parseFor()
         delete condition;
         raise("Empty for step is not allowed");
     }
+
     Node* step = parseExpression();
-
     expect(TokenKind::RightParen, "Expected ')' after for-header");
-
     Node* body = parseForBody();
 
-    return new NodeFor(firstDecl, condition, step, nullptr, body, false);
+    return new NodeFor(firstDecl, condition, step, body);
 }
 
 #endif // PARSER_HPP

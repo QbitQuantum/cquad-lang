@@ -68,6 +68,7 @@ public:
         CaseBody,
         CaseDefault,
         For,
+        ForRange,
         StructuredBinding,
     };
 
@@ -1222,31 +1223,21 @@ public:
         return Type->print() + " [" + Node::join(Names) + "]";
     }
 };
-
-// TODO: Разделить на 2 ноды: for и for range-based
+// Обычный for: for (init; condition; step) body
 class NodeFor : public Node
 {
 public:
     Node* Init = nullptr;
     Node* Condition = nullptr;
     Node* Step = nullptr;
-    Node* Range = nullptr;
     Node* Body = nullptr;
-    bool IsRange = false;
 
-    NodeFor(
-        Node* init,
-        Node* condition,
-        Node* step,
-        Node* range,
-        Node* body,
-        bool isRange)
-        : Node(EDeclType::For), Init(init),
+    NodeFor(Node* init, Node* condition, Node* step, Node* body)
+        : Node(EDeclType::For),
+        Init(init),
         Condition(condition),
         Step(step),
-        Range(range),
-        Body(body),
-        IsRange(isRange)
+        Body(body)
     {
     }
 
@@ -1254,28 +1245,17 @@ public:
         delete Init;
         delete Condition;
         delete Step;
-        delete Range;
         delete Body;
     }
 
     std::string print() override {
         std::string result = "for (";
 
-        if (IsRange) {
-            if (Init) {
-                result += Init->print();
-            }
-            if (Range) {
-                result += " : " + Range->print();
-            }
-        }
-        else {
-            if (Init) result += Init->print();
-            result += "; ";
-            if (Condition) result += Condition->print();
-            result += "; ";
-            if (Step) result += Step->print();
-        }
+        if (Init) result += Init->print();
+        result += "; ";
+        if (Condition) result += Condition->print();
+        result += "; ";
+        if (Step) result += Step->print();
 
         result += ") ";
         if (Body) result += Body->print();
@@ -1283,4 +1263,46 @@ public:
     }
 };
 
+// Range-based for: for (init; decl : range) body
+class NodeForRange : public Node
+{
+public:
+    Node* Init = nullptr;
+    Node* Decl = nullptr;
+    Node* Range = nullptr;
+    Node* Body = nullptr;
+
+    NodeForRange(Node* init, Node* decl, Node* range, Node* body)
+        : Node(EDeclType::ForRange),
+        Init(init),
+        Decl(decl),
+        Range(range),
+        Body(body)
+    {
+    }
+
+    ~NodeForRange() override {
+        delete Init;
+        delete Decl;
+        delete Range;
+        delete Body;
+    }
+
+    std::string print() override {
+        std::string result = "for (";
+
+        if (Init) {
+            result += Init->print();
+            result += "; ";
+        }
+
+        if (Decl) result += Decl->print();
+        result += " : ";
+        if (Range) result += Range->print();
+
+        result += ") ";
+        if (Body) result += Body->print();
+        return result;
+    }
+};
 #endif // NODE_HPP
