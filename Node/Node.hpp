@@ -796,12 +796,29 @@ public:
 class NodeString : public Node
 {
     std::string Raw;
+
+    std::string escapeString(const std::string& raw)
+    {
+        std::string out;
+        out.reserve(raw.size());
+        for (char c : raw) {
+            switch (c) {
+            case '\n': out += "\\n"; break;
+            case '\t': out += "\\t"; break;
+            case '\r': out += "\\r"; break;
+            case '\\': out += "\\\\"; break;
+            case '\"': out += "\\\""; break;
+            default:   out += c; break;
+            }
+        }
+        return out;
+    }
+
 public:
     NodeString(const std::string& val)
         : Node(EDeclType::String), Raw(val) {
     }
-
-    std::string print() override { return "\"" + Raw + "\""; }
+    std::string print() override { return "\"" + escapeString(Raw) + "\""; }
 };
 
 class NodeCharacter : public Node
