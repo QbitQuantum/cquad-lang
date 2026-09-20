@@ -1,4 +1,8 @@
 
+#ifndef PARSER_CONSTANT_H
+#define PARSER_CONSTANT_H
+#pragma once
+
 namespace typefunction
 {
     const int Function = 1;
@@ -30,3 +34,5 @@ namespace typeinitialization
     const int DirectList = 3; // int x{5};
     const int CopyList = 4; // int x = {5};
 }
+
+#endif // PARSER_CONSTANT_H
