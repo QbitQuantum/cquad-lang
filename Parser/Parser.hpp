@@ -324,8 +324,8 @@ Node* Parser::parseExpression(int minPrec, int exprKind) {
 }
 
 Node* Parser::parseCall() {
-    Node* calle = parseIdentifier();
-    return parseCall(calle);
+    Node* callee = parseIdentifier();
+    return parseCall(callee);
 }
 
 Node* Parser::parseCall(Node* callee) {
