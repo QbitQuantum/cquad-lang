@@ -179,7 +179,7 @@ Node* Parser::parsePrimary() {
     UnaryOperand unary = UnaryOperand::Unknown;
     if (tok::IsPrefixUnaryOperator(token())) {
         unary = UnOparand::getUnaryOperand(token());
-        consume(token());
+        advance();
     }
 
     Node* right = nullptr;
@@ -221,7 +221,7 @@ Node* Parser::parsePrimary() {
         }
         if (tok::IsPostfixUnaryOperator(token())) {
             auto rUnary = UnOparand::getUnaryOperand(token());
-            consume(token());
+            advance();
             right = new NodeUnaryOp(rUnary, right, true);
             continue;
         }
@@ -394,7 +394,7 @@ Node* Parser::parseDelete() {
 }
 
 Node* Parser::parseValue() {
-    Token ValueToken = consume(token());
+    Token ValueToken = peek();
     std::string raw_value = ValueToken.value;
     TokenKind raw_type = ValueToken.type;
     Node* right = nullptr;
@@ -414,6 +414,7 @@ Node* Parser::parseValue() {
     case TokenKind::NullptrLiteral: right = new NodeNullptr();    break;
     default: raise("Unexpected token in literal");
     }
+    advance();
     return right;
 }
 
@@ -470,7 +471,7 @@ Node* Parser::parseTemplateParam() {
 
     // typename A [= default]
     if (is(TokenKind::Typename)) {
-        consume(token());
+        advance();
         Node* name = is(TokenKind::IdentifierLiteral) ? parseIdentifier() : nullptr;
         Node* def = match(TokenKind::Equal) ? parseType() : nullptr;
         return new NodeTemplateTypeParam(name, def);
