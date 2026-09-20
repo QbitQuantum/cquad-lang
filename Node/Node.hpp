@@ -284,6 +284,9 @@ public:
     std::string print() override {
         return Node::join(Scope, "::");
     }
+    ~NodeScope() override {
+        for (auto* p : Scope) delete p;
+    }
 };
 
 class NodeUsing : public Node
