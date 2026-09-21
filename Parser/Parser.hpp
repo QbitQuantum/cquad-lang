@@ -55,7 +55,7 @@ private:
     Node* parseDeclarationPrimary();
 
     Node* parseIdentifier(int exprKind = typeexpression::Unknown);
-    Node* parseIdentifierScope(int exprKind = typeexpression::Unknown);
+    Node* parseIdentifierScope(int exprKind = typeexpression::Unknown, Node* qualifier = nullptr);
     Node* parseDeclarationName(
         SymbolKind kind, Node* typeNode = nullptr,
         bool isConst = false, bool throwOnRedeclare = true);
@@ -160,29 +160,20 @@ Node* Parser::parseTopLevel()
 }
 
 Node* Parser::parseIdentifier(int exprKind) {
-    Node* first = parseIdentifierScope(exprKind);
-    if (isNot(TokenKind::ScResOp))
-        return first;
-    std::vector<Node*> parts;
-    parts.push_back(first);
+    Node* base = parseIdentifierScope(exprKind);
     while (match(TokenKind::ScResOp)) {
-        match(TokenKind::Template); // пропускаем дизамбигуатор временно
-        parts.push_back(parseIdentifierScope(exprKind));
+        bool tplKw = match(TokenKind::Template); // not used
+        base = parseIdentifierScope(exprKind, base);
     }
-    return new NodeScope(std::move(parts));
+    return base;
 }
 
-Node* Parser::parseIdentifierScope(int exprKind) {
-    if (isNot(TokenKind::IdentifierLiteral))
-        raise("Expected identifier");
-
+Node* Parser::parseIdentifierScope(int exprKind, Node* qualifier) {
     std::string name = consume(TokenKind::IdentifierLiteral).value;
-
     Node* tmplArgs = nullptr;
-    if (is(TokenKind::Less) && exprKind != typeexpression::Condition)
+    if (is(TokenKind::Less) && exprKind != typeexpression::Condition) 
         tmplArgs = parseTemplateArgList();
-
-    return new NodeIdentifier(tmplArgs, std::move(name));
+    return new NodeIdentifier(tmplArgs, std::move(name), qualifier);
 }
 
 Node* Parser::parseDeclarationName(SymbolKind kind, Node* typeNode, bool isConst, bool throwOnRedeclare)

@@ -20,7 +20,6 @@ public:
         VarDeclarationList,
         TemplateVarDeclarationList,
         MemberCall,
-        Scope,
         Using,
         ParameterList,
         Function,
@@ -99,21 +98,27 @@ inline std::string Node::join(const std::vector<Node*>& nodes,
 class NodeIdentifier : public Node
 {
     Node* TemplateArgs = nullptr;
+    Node* Qualifier = nullptr;
     std::string Name;
 public:
-    NodeIdentifier(Node* templateArgs, const std::string& name)
+    NodeIdentifier(Node* templateArgs, const std::string& name, Node* qualifier = nullptr)
         : Node(EDeclType::Identifier),
-        TemplateArgs(templateArgs), Name(name) {
+        TemplateArgs(templateArgs),
+        Qualifier(qualifier),
+        Name(name) {
     }
 
     std::string print() override {
-        std::string out = Name;
+        std::string out;
+        if (Qualifier) out += Qualifier->print() + "::";
+        out += Name;
         if (TemplateArgs) out += TemplateArgs->print();
         return out;
     }
 
     ~NodeIdentifier() override {
         delete TemplateArgs;
+        delete Qualifier;
     }
 };
 
@@ -270,22 +275,6 @@ public:
     ~NodeMemberCall() override {
         delete Object;
         delete Member;
-    }
-};
-
-class NodeScope : public Node
-{
-    std::vector<Node*> Scope;
-public:
-    NodeScope(const std::vector<Node*>& scope)
-        : Node(EDeclType::Scope), Scope(scope) {
-    }
-
-    std::string print() override {
-        return Node::join(Scope, "::");
-    }
-    ~NodeScope() override {
-        for (auto* p : Scope) delete p;
     }
 };
 
