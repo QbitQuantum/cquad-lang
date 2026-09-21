@@ -1,4 +1,8 @@
 
+#ifndef PARSE_ERROR_HPP
+#define PARSE_ERROR_HPP
+#pragma once
+
 #include <stdexcept>
 #include <string>
 
@@ -16,3 +20,5 @@ public:
     int line() const { return line_; }
     int column() const { return column_; }
 };
+
+#endif // PARSE_ERROR_HPP

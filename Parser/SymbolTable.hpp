@@ -5,6 +5,7 @@
 #include <memory>
 #include <vector>
 #include <string>
+#include "ParserError.hpp"
 #include "Node.hpp"
 
 enum class SymbolKind {
