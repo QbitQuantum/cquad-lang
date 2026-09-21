@@ -9,6 +9,7 @@
 #include "PostLexer.hpp"
 #include "ParserError.hpp"
 #include "ParserTokenStream.hpp"
+#include "SymbolTable.hpp"
 #include "ParserConstant.h"
 #include "Node.hpp"
 
@@ -18,7 +19,9 @@ private:
     TokenStream stream;
     std::vector<Node*> ast;
     std::vector<Node*> ambiguousNodes;
+    SymbolTable symbols;
 
+    // ---- помощники для работы с токенами ----
     size_t streamSize() const noexcept { return stream.Size(); }
     bool   atEnd()      const noexcept { return stream.eof(); }
     TokenKind token()   const noexcept { return stream.peek().type; }
@@ -42,6 +45,10 @@ private:
         if (!match(kind)) if (!soft) raise(msg);
     }
 
+    static std::string identifierName(Node* node) {
+        return node->print();
+    }
+
     Node* parseTopLevel();
     Node* parseStatement(int scope);
     Node* parseDeclaration();
@@ -49,6 +56,9 @@ private:
 
     Node* parseIdentifier(int exprKind = typeexpression::Unknown);
     Node* parseIdentifierScope(int exprKind = typeexpression::Unknown);
+    Node* parseDeclarationName(
+        SymbolKind kind, Node* typeNode = nullptr,
+        bool isConst = false, bool throwOnRedeclare = true);
     Node* parsePrimary();
     Node* parseExpression(int minPrec = 0, int exprKind = typeexpression::Expression);
 
@@ -86,7 +96,7 @@ private:
 
     Node* parseVar();
     Node* parseVarType();
-    Node* parseVarDecl(bool IsPrimary = false);
+    Node* parseVarDecl(bool IsPrimary = false, SymbolKind kind = SymbolKind::Variable);
     Node* parseVarDeclList();
 
     Node* parseClass();
@@ -135,18 +145,18 @@ public:
 
     const std::vector<Node*>& GetAst() const { return ast; }
     const std::vector<Node*>& GetAmbiguousNodes() const { return ambiguousNodes; }
+
+    const SymbolTable& GetSymbolTable() const { return symbols; }
+    SymbolTable& GetSymbolTable() { return symbols; }
 };
 
 Node* Parser::parseTopLevel()
 {
-    Node* tmpl = parseTemplateDecl();
-    Node* stmt = nullptr;
+    if (is(TokenKind::Template)) return parseTemplateDecl();
     switch (token()) {
-    case TokenKind::Class: stmt = parseClass(); break;
-    default:               stmt = parseStatement(typescope::Global); break;
+    case TokenKind::Class: return parseClass();
+    default:               return parseStatement(typescope::Global);
     }
-    if (tmpl) stmt = wrapTemplate(tmpl, stmt);
-    return stmt;
 }
 
 Node* Parser::parseIdentifier(int exprKind) {
@@ -173,6 +183,16 @@ Node* Parser::parseIdentifierScope(int exprKind) {
         tmplArgs = parseTemplateArgList();
 
     return new NodeIdentifier(tmplArgs, std::move(name));
+}
+
+Node* Parser::parseDeclarationName(SymbolKind kind, Node* typeNode, bool isConst, bool throwOnRedeclare)
+{
+    if (isNot(TokenKind::IdentifierLiteral))
+        raise("Expected identifier in declaration");
+    Token t = peek();
+    Node* name = parseIdentifier();
+    symbols.declare(identifierName(name), kind, typeNode, name, t.line, t.column, isConst, throwOnRedeclare);
+    return name;
 }
 
 Node* Parser::parsePrimary() {
@@ -230,7 +250,7 @@ Node* Parser::parsePrimary() {
     return right;
 }
 
-Node* Parser::parseExpression(int minPrec, int exprKind) {  
+Node* Parser::parseExpression(int minPrec, int exprKind) {
     Node* left = parsePrimary();
     while (true) {
         TokenKind op = token();
@@ -472,26 +492,43 @@ Node* Parser::parseTemplateParam() {
     // typename A [= default]
     if (is(TokenKind::Typename)) {
         advance();
-        Node* name = is(TokenKind::IdentifierLiteral) ? parseIdentifier() : nullptr;
+        Node* name = nullptr;
+        if (is(TokenKind::IdentifierLiteral))
+            name = parseDeclarationName(SymbolKind::TemplateTypeParam);
         Node* def = match(TokenKind::Equal) ? parseType() : nullptr;
         return new NodeTemplateTypeParam(name, def);
     }
 
     // int B [= 3]
     Node* type = parseType();
-    Node* name = parseIdentifier();
+    Node* name = parseDeclarationName(SymbolKind::TemplateValueParam, type);
     Node* def = match(TokenKind::Equal) ? parseExpression() : nullptr;
     return new NodeTemplateValueParam(type, name, def);
 }
 
 Node* Parser::parseTemplateDecl() {
     if (isNot(TokenKind::Template)) return nullptr;
-    return parseTemplate();
+
+    expect(TokenKind::Template, "Expected 'template'");
+    symbols.enterScope(ScopeKind::Template);
+
+    Node* params = parseTemplateParamList();
+
+    Node* decl = nullptr;
+    switch (token()) {
+    case TokenKind::Class: decl = parseClass(); break;
+    default:               decl = parseStatement(typescope::Global); break;
+    }
+
+    symbols.exitScope();
+    return wrapTemplate(params, decl);
 }
 
 Node* Parser::parseTemplate() {
     expect(TokenKind::Template, "Expected 'template'");
+    symbols.enterScope(ScopeKind::Template);
     Node* params = parseTemplateParamList();
+    symbols.exitScope();
     return new NodeTemplate(params);
 }
 
@@ -534,7 +571,7 @@ Node* Parser::parseTemplateArgList() {
 }
 
 Node* Parser::parseStatement(int scope) {
-    
+
     static auto canStartType = [](TokenKind d) {
         switch (d) {
         case TokenKind::Const:
@@ -632,10 +669,15 @@ Node* Parser::parseFunction() {
     default: break;
     }
 
-    Node* name = parseIdentifier();
+    Node* name = parseDeclarationName(SymbolKind::Function, returnType, false, false);
+    symbols.enterScope(ScopeKind::Function, identifierName(name));
+    Symbol* fnSym = symbols.currentScope()->parent->findLocal(identifierName(name));
+    if (fnSym) fnSym->scope = symbols.currentScope();
+
     Node* params = parseFunctionParams();
     Node* body = parseFunctionBody();
-    
+    symbols.exitScope();
+
     Node* Stmt = nullptr;
     switch (typef)
     {
@@ -663,8 +705,7 @@ Node* Parser::parseFunctionParams() {
 
 Node* Parser::parseFunctionParam() {
     Node* type = parseType();
-    // Parse parameter name (optional)
-    Node* defaultValue = parseVarDecl(true);
+    Node* defaultValue = parseVarDecl(true, SymbolKind::Parameter);
     return new NodeVarDeclarationList(type, defaultValue);
 }
 
@@ -762,7 +803,7 @@ Node* Parser::parseCaseBody() {
         expect(TokenKind::RightBrace, "Expected '}' after case value");
     }
     else elem.push_back(parseStatement(typescope::Function));
-    
+
     if (token() == TokenKind::Break)
         elem.push_back(parseBreak());
 
@@ -817,11 +858,8 @@ Node* Parser::parseVarType() {
     return parseType();
 }
 
-Node* Parser::parseVarDecl(bool IsPrimary) {
-    if (isNot(TokenKind::IdentifierLiteral))
-        raise("Expected identifier in declaration");
-
-    Node* name = parseIdentifier();
+Node* Parser::parseVarDecl(bool IsPrimary, SymbolKind kind) {
+    Node* name = parseDeclarationName(kind);
     int initKind = typeinitialization::Unknown;
     Node* init = nullptr;
 
@@ -873,9 +911,16 @@ Node* Parser::parseVarDeclList() {
 
 Node* Parser::parseClass() {
     consume(TokenKind::Class);
-    Node* name = parseClassName();
+    Node* name = parseDeclarationName(SymbolKind::Class);
+    symbols.enterScope(ScopeKind::Class, identifierName(name));
+    Symbol* clsSym = symbols.currentScope()->parent->findLocal(identifierName(name));
+    if (clsSym) clsSym->scope = symbols.currentScope();
+
     Node* base = parseClassBase();
     Node* body = parseClassBody();
+
+    symbols.exitScope();
+
     return new NodeClass(name, base, body);
 }
 
@@ -965,9 +1010,9 @@ Node* Parser::parseForDecl()
         if (isNot(TokenKind::IdentifierLiteral))
             raise("Expected identifier in structured binding");
 
-        names.push_back(parseIdentifier());
+        names.push_back(parseDeclarationName(SymbolKind::Variable, type));
         while (match(TokenKind::Comma))
-            names.push_back(parseIdentifier());
+            names.push_back(parseDeclarationName(SymbolKind::Variable, type));
 
         expect(TokenKind::RightBracket, "Expected ']' after structured binding identifiers");
 
@@ -980,7 +1025,7 @@ Node* Parser::parseForDecl()
         raise("Expected variable name in for declaration");
     }
 
-    Node* name = parseIdentifier();
+    Node* name = parseDeclarationName(SymbolKind::Variable, type);
     Node* init = nullptr;
     int initKind = typeinitialization::Default;
 
@@ -997,7 +1042,7 @@ Node* Parser::parseForBody()
 {
     if (match(TokenKind::LeftBrace)) {
         Node* block = parseFunctionBlock();
-        expect(TokenKind::RightBrace,"Expected '}' after for-body");
+        expect(TokenKind::RightBrace, "Expected '}' after for-body");
         return block;
     }
     return parseStatement(typescope::Function);
@@ -1009,11 +1054,14 @@ Node* Parser::parseFor()
 
     expect(TokenKind::LeftParen, "Expected '(' after 'for'");
 
+    symbols.enterScope(ScopeKind::For);
+
     // for (;;) { }
     if (match(TokenKind::Semicolon)) {
         expect(TokenKind::Semicolon, "Only 'for (;;)' is allowed with empty initialization");
         expect(TokenKind::RightParen, "Expected ')' after for-header");
         Node* body = parseForBody();
+        symbols.exitScope();
         return new NodeFor(nullptr, nullptr, nullptr, body);
     }
 
@@ -1024,6 +1072,7 @@ Node* Parser::parseFor()
         Node* range = parseExpression();
         expect(TokenKind::RightParen, "Expected ')' after range-for expression");
         Node* body = parseForBody();
+        symbols.exitScope();
         return new NodeForRange(nullptr, firstDecl, range, body);
     }
     expect(TokenKind::Semicolon, "Expected ';' or ':' after for declaration");
@@ -1037,6 +1086,7 @@ Node* Parser::parseFor()
             Node* range = parseExpression();
             expect(TokenKind::RightParen, "Expected ')' after range-for expression");
             Node* body = parseForBody();
+            symbols.exitScope();
             return new NodeForRange(firstDecl, rangeDecl, range, body);
         }
         delete rangeDecl;
@@ -1050,6 +1100,7 @@ Node* Parser::parseFor()
     if (is(TokenKind::RightParen)) {
         delete firstDecl;
         delete condition;
+        symbols.exitScope();
         raise("Empty for step is not allowed");
     }
 
@@ -1057,6 +1108,7 @@ Node* Parser::parseFor()
     expect(TokenKind::RightParen, "Expected ')' after for-header");
     Node* body = parseForBody();
 
+    symbols.exitScope();
     return new NodeFor(firstDecl, condition, step, body);
 }
 

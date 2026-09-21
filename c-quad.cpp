@@ -73,4 +73,6 @@ int main()
 		if (node)
 			std::cout << node->print() << "\n";
 	}
+    std::cout << "========================" << "\n";
+    parser.GetSymbolTable().dump();
 }

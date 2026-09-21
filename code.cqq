@@ -8,7 +8,7 @@ class CompilationContext
     int labelCount = 10;
     IRInstruction* currentInst = nullptr;
     std::vector<int> stackFrameOffsets;
-
+    
     // √рупповые объ€влени€
     int opCode, destReg, srcReg;
     const int[5] byteCode1, byteCode2, byteCode3;
@@ -67,7 +67,7 @@ int main()
     
     for (;;) { }
     
-    for (auto i = 0; i < n; ++i) int i = 3;
+    for (auto i = 0; i < n; ++i) int i1 = 3;
     for (std::size_t i = 0; i < v.size(); ++i) { }
     for (int i = n - 1; i >= 0; --i) { }
     for (auto it = v.begin(); it != v.end(); ++it) { }
