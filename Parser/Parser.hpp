@@ -61,7 +61,7 @@ private:
 
     Node* parseIdentifier(int exprKind = typeexpression::Unknown);
     Node* parseIdentifierScope(int exprKind = typeexpression::Unknown, Node* qualifier = nullptr);
-    Node* parseDeclarationName(SymbolKind kind, Node* typeNode = nullptr, bool isConst = false, bool throwOnRedeclare = true);
+    Node* parseDeclarationName(SymbolKind kind, Node* typeNode = nullptr, bool throwOnRedeclare = true);
     Node* parsePrimary();
     Node* parseExpression(int minPrec = 0, int exprKind = typeexpression::Expression);
 
@@ -240,13 +240,13 @@ Node* Parser::parseIdentifierScope(int exprKind, Node* qualifier) {
     return new NodeIdentifier(tmplArgs, std::move(name), qualifier);
 }
 
-Node* Parser::parseDeclarationName(SymbolKind kind, Node* typeNode, bool isConst, bool throwOnRedeclare)
+Node* Parser::parseDeclarationName(SymbolKind kind, Node* typeNode, bool throwOnRedeclare)
 {
     if (isNot(TokenKind::IdentifierLiteral))
         raise("Expected identifier in declaration");
     Token t = peek();
     Node* name = parseIdentifier();
-    symbols.declare(identifierName(name), kind, typeNode, name, t.line, t.column, isConst, throwOnRedeclare);
+    symbols.declare(identifierName(name), kind, typeNode, name, t.line, t.column, throwOnRedeclare);
     return name;
 }
 
@@ -710,7 +710,7 @@ Node* Parser::parseFunction() {
     default: break;
     }
 
-    Node* name = parseDeclarationName(SymbolKind::Function, returnType, false, false);
+    Node* name = parseDeclarationName(SymbolKind::Function, returnType, false);
     symbols.enterScope(ScopeKind::Function, identifierName(name));
     Symbol* fnSym = symbols.currentScope()->parent->findLocal(identifierName(name));
     if (fnSym) fnSym->scope = symbols.currentScope();

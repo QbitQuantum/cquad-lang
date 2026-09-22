@@ -40,13 +40,12 @@ struct Symbol {
     Scope* scope = nullptr;
     size_t       line = 0;
     size_t       column = 0;
-    bool         isConst = false;
 
     Symbol() = default;
     Symbol(std::string n, SymbolKind k, Node* t, Node* d,
-        size_t ln, size_t col, bool c)
+        size_t ln, size_t col)
         : name(std::move(n)), kind(k), typeNode(t), declNode(d),
-        line(ln), column(col), isConst(c) {
+        line(ln), column(col) {
     }
 };
 
@@ -115,7 +114,6 @@ public:
         Node* declNode = nullptr,
         size_t line = 0,
         size_t column = 0,
-        bool isConst = false,
         bool throwOnRedeclare = true)
     {
         const bool allowOverload = (kind == SymbolKind::Function);
@@ -129,7 +127,7 @@ public:
             }
         }
 
-        auto sym = std::make_unique<Symbol>(name, kind, typeNode, declNode, line, column, isConst);
+        auto sym = std::make_unique<Symbol>(name, kind, typeNode, declNode, line, column);
         Symbol* raw = sym.get();
         current_->symbols.push_back(std::move(sym));
         return raw;
@@ -186,7 +184,6 @@ private:
             os << pad << "  " << symbolKindName(sym->kind)
                 << " " << sym->name
                 << " @" << sym->line << ":" << sym->column;
-            if (sym->isConst) os << " const";
             os << "\n";
         }
         for (const auto& c : s->children)
