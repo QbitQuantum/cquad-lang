@@ -1,8 +1,12 @@
 
+// ВНИМАНИЕ: Это НЕ стандартный C++.
+// Это диалект C++-подобного языка
 template<typename A, int B = 3, template<typename C>>
 class CompilationContext
 {
+    // конструктор
     void ^CompilationContext();
+    // деструктор
     void ~CompilationContext();
 
     int labelCount = 10;
