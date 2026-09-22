@@ -16,6 +16,23 @@ namespace typescope
     const int Global = 0;
     const int Class = 1;
     const int Function = 2;
+    const int While = 3;
+    const int For = 4;
+    const int Case = 5;
+    const int If = 6;
+    const int Else = 7;
+    const int Switch = 8;
+
+    static bool requiresBracedBlock(int scope) {
+        switch (scope) {
+        case typescope::Function:
+        case typescope::Class:
+        case typescope::Switch:
+            return true;
+        default:
+            return false;
+        }
+    }
 }
 
 namespace typeexpression

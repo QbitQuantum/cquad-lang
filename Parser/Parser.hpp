@@ -49,6 +49,11 @@ private:
         return node->print();
     }
 
+    Node* parseStatementList(int scope);
+    Node* parseBlockOrStatement(int scope);
+    Node* parseBracedBlock(int scope);
+    Node* parseBody(int scope);
+
     Node* parseTopLevel();
     Node* parseStatement(int scope);
     Node* parseDeclaration();
@@ -56,9 +61,7 @@ private:
 
     Node* parseIdentifier(int exprKind = typeexpression::Unknown);
     Node* parseIdentifierScope(int exprKind = typeexpression::Unknown, Node* qualifier = nullptr);
-    Node* parseDeclarationName(
-        SymbolKind kind, Node* typeNode = nullptr,
-        bool isConst = false, bool throwOnRedeclare = true);
+    Node* parseDeclarationName(SymbolKind kind, Node* typeNode = nullptr, bool isConst = false, bool throwOnRedeclare = true);
     Node* parsePrimary();
     Node* parseExpression(int minPrec = 0, int exprKind = typeexpression::Expression);
 
@@ -83,7 +86,6 @@ private:
     Node* parseFunctionParams();
     Node* parseFunctionParam();
     Node* parseFunctionBody();
-    Node* parseFunctionBlock();
 
     Node* parseSwitch();
     Node* parseSwitchCond();
@@ -150,6 +152,68 @@ public:
     SymbolTable& GetSymbolTable() { return symbols; }
 };
 
+
+Node* Parser::parseStatementList(int scope)
+{
+    symbols.enterScope(ScopeKind::Block);
+
+    std::vector<Node*> elem;
+    while (!atEnd() && isNot(TokenKind::RightBrace)) {
+        Node* stmt = nullptr;
+        switch (token()) {
+        case TokenKind::If:      stmt = parseCondition(); break;
+        case TokenKind::While:   stmt = parseWhile();     break;
+        case TokenKind::Return:  stmt = parseReturn();    break;
+        case TokenKind::Delete_: stmt = parseDelete();    break;
+        case TokenKind::Break:   stmt = parseBreak();     break;
+        case TokenKind::Switch:  stmt = parseSwitch();    break;
+        case TokenKind::For:     stmt = parseFor();       break;
+        default:                 stmt = parseStatement(scope); break;
+        }
+        if (stmt) elem.push_back(stmt);
+    }
+
+    symbols.exitScope();
+    return new NodeBlock(elem);
+}
+
+Node* Parser::parseBlockOrStatement(int scope)
+{
+    if (is(TokenKind::LeftBrace))
+        return parseBracedBlock(scope);
+
+    symbols.enterScope(ScopeKind::Block);
+
+    std::vector<Node*> elem;
+    Node* stmt = nullptr;
+    switch (token()) {
+    case TokenKind::If:     stmt = parseCondition(); break;
+    case TokenKind::Switch: stmt = parseSwitch();    break;
+    case TokenKind::While:  stmt = parseWhile();     break;
+    case TokenKind::For:    stmt = parseFor();       break;
+    default:                stmt = parseStatement(scope); break;
+    }
+    if (stmt) elem.push_back(stmt);
+
+    symbols.exitScope();
+    return new NodeBlock(elem);
+}
+
+Node* Parser::parseBracedBlock(int scope)
+{
+    expect(TokenKind::LeftBrace, "Expected '{'");
+    Node* body = parseStatementList(scope);
+    expect(TokenKind::RightBrace, "Expected '}'");
+    return body;
+}
+
+Node* Parser::parseBody(int scope)
+{
+    if (typescope::requiresBracedBlock(scope))
+        return parseBracedBlock(scope);
+    return parseBlockOrStatement(scope);
+}
+
 Node* Parser::parseTopLevel()
 {
     if (is(TokenKind::Template)) return parseTemplateDecl();
@@ -171,7 +235,7 @@ Node* Parser::parseIdentifier(int exprKind) {
 Node* Parser::parseIdentifierScope(int exprKind, Node* qualifier) {
     std::string name = consume(TokenKind::IdentifierLiteral).value;
     Node* tmplArgs = nullptr;
-    if (is(TokenKind::Less) && exprKind != typeexpression::Condition) 
+    if (is(TokenKind::Less) && exprKind != typeexpression::Condition)
         tmplArgs = parseTemplateArgList();
     return new NodeIdentifier(tmplArgs, std::move(name), qualifier);
 }
@@ -326,22 +390,7 @@ Node* Parser::parseIfCond() {
 }
 
 Node* Parser::parseIfBody() {
-    std::vector<Node*> elem;
-    if (match(TokenKind::LeftBrace)) {
-        elem.push_back(parseFunctionBlock());
-        expect(TokenKind::RightBrace, "Expected '}' after if-body");
-    }
-    else
-    {
-        Node* stmt = nullptr;
-        switch (token()) {
-        case TokenKind::If:     stmt = parseCondition(); break;
-        case TokenKind::Switch: stmt = parseSwitch();    break;
-        default:                stmt = parseStatement(typescope::Function); break;
-        }
-        if (stmt) elem.push_back(stmt);
-    }
-    return new NodeBlock(elem);
+    return parseBody(typescope::If);
 }
 
 Node* Parser::parseElse() {
@@ -351,7 +400,7 @@ Node* Parser::parseElse() {
 }
 
 Node* Parser::parseElseBody() {
-    return parseIfBody();
+    return parseBody(typescope::Else);
 }
 
 Node* Parser::parseWhile() {
@@ -371,12 +420,7 @@ Node* Parser::parseWhileCond() {
 }
 
 Node* Parser::parseWhileBody() {
-    if (match(TokenKind::LeftBrace)) {
-        Node* Block = parseFunctionBlock();
-        expect(TokenKind::RightBrace, "Expected '}' after while-body");
-        return Block;
-    }
-    return parseStatement(typescope::Function);
+    return parseBody(typescope::Function);
 }
 
 Node* Parser::parseReturn() {
@@ -385,6 +429,12 @@ Node* Parser::parseReturn() {
     if (isNot(TokenKind::Semicolon)) expr = parseExpression();
     expect(TokenKind::Semicolon, "Expected ';' after return statement");
     return new NodeReturn(expr);
+}
+
+Node* Parser::parseBreak() {
+    consume(TokenKind::Break);
+    expect(TokenKind::Semicolon, "Expected ';' after 'break'");
+    return new NodeBreak();
 }
 
 Node* Parser::parseNew() {
@@ -701,32 +751,10 @@ Node* Parser::parseFunctionParam() {
 }
 
 Node* Parser::parseFunctionBody() {
-    if (match(TokenKind::LeftBrace)) {
-        Node* body = parseFunctionBlock();
-        expect(TokenKind::RightBrace, "Expected '}'");
-        return body;
-    }
+    if (is(TokenKind::LeftBrace))
+        return parseBody(typescope::Function);
     expect(TokenKind::Semicolon, "Expected ';'");
     return nullptr;
-}
-
-Node* Parser::parseFunctionBlock() {
-    std::vector<Node*> elem;
-    while (!atEnd() && isNot(TokenKind::RightBrace)) {
-        Node* stmt = nullptr;
-        switch (token()) {
-        case TokenKind::If:      stmt = parseCondition(); break;
-        case TokenKind::While:   stmt = parseWhile();     break;
-        case TokenKind::Return:  stmt = parseReturn();    break;
-        case TokenKind::Delete_: stmt = parseDelete();    break;
-        case TokenKind::Break:   stmt = parseBreak();     break;
-        case TokenKind::Switch:  stmt = parseSwitch();    break;
-        case TokenKind::For:     stmt = parseFor();    break;
-        default:                 stmt = parseStatement(typescope::Function); break;
-        }
-        if (stmt) elem.push_back(stmt);
-    }
-    return new NodeBlock(elem);
 }
 
 Node* Parser::parseSwitch() {
@@ -745,16 +773,21 @@ Node* Parser::parseSwitchCond() {
 
 Node* Parser::parseSwitchBody() {
     expect(TokenKind::LeftBrace, "Expected '{' after switch-condition");
+
+    symbols.enterScope(ScopeKind::Block);
+
     std::vector<Node*> elem;
     while (!atEnd() && isNot(TokenKind::RightBrace)) {
         Node* stmt = nullptr;
         switch (token()) {
-        case TokenKind::Case:      stmt = parseCase(); break;
-        case TokenKind::Default:   stmt = parseDefaultCase();     break;
+        case TokenKind::Case:      stmt = parseCase();        break;
+        case TokenKind::Default:   stmt = parseDefaultCase(); break;
         default:                   raise("Not correct token parse in switch section");
         }
         if (stmt) elem.push_back(stmt);
     }
+
+    symbols.exitScope();
     expect(TokenKind::RightBrace, "Expected '}' after switch body");
     return new NodeBlock(elem);
 }
@@ -774,30 +807,11 @@ Node* Parser::parseCaseValue() {
 
 Node* Parser::parseCaseBody() {
     std::vector<Node*> elem;
-    if (match(TokenKind::LeftBrace))
-    {
-        std::vector<Node*> elem_block;
-        while (!atEnd() && isNot(TokenKind::RightBrace))
-        {
-            Node* stmt = nullptr;
-            switch (token()) {
-            case TokenKind::If:      stmt = parseCondition(); break;
-            case TokenKind::While:   stmt = parseWhile();     break;
-            case TokenKind::Switch:  stmt = parseSwitch();    break;
-            case TokenKind::Return:  stmt = parseReturn();    break;
-            case TokenKind::Delete_: stmt = parseDelete();    break;
-            default:                 stmt = parseStatement(typescope::Function); break;
-            }
-            if (stmt) elem_block.push_back(stmt);
-        }
-        elem.push_back(new NodeBlock(std::move(elem_block)));
-        expect(TokenKind::RightBrace, "Expected '}' after case value");
-    }
-    else elem.push_back(parseStatement(typescope::Function));
-
+    symbols.enterScope(ScopeKind::Block);
+    elem.push_back(parseBody(typescope::Case));
+    symbols.exitScope();
     if (token() == TokenKind::Break)
         elem.push_back(parseBreak());
-
     return new NodeCaseBody(std::move(elem));
 }
 
@@ -806,12 +820,6 @@ Node* Parser::parseDefaultCase() {
     expect(TokenKind::Colon, "Expected ':' after 'default'");
     Node* body = parseCaseBody();
     return new NodeCaseDefault(body);
-}
-
-Node* Parser::parseBreak() {
-    consume(TokenKind::Break);
-    expect(TokenKind::Semicolon, "Expected ';' after 'break'");
-    return new NodeBreak();
 }
 
 Node* Parser::parseDeclaration() {
@@ -923,7 +931,7 @@ Node* Parser::parseClassName() {
 
 Node* Parser::parseClassBody() {
     if (is(TokenKind::LeftBrace)) {
-        consume(TokenKind::LeftBrace);
+        expect(TokenKind::LeftBrace, "Expected '{' after class declaration");
         Node* body = parseClassBlock();
         expect(TokenKind::RightBrace, "Expected '}' after class declaration");
         return body;
@@ -1031,12 +1039,7 @@ Node* Parser::parseForDecl()
 
 Node* Parser::parseForBody()
 {
-    if (match(TokenKind::LeftBrace)) {
-        Node* block = parseFunctionBlock();
-        expect(TokenKind::RightBrace, "Expected '}' after for-body");
-        return block;
-    }
-    return parseStatement(typescope::Function);
+    return parseBody(typescope::For);
 }
 
 Node* Parser::parseFor()
