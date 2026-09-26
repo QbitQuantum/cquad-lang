@@ -517,44 +517,6 @@ public:
     }
 };
 
-class NodeBlockClass : public Node
-{
-public:
-    enum class FieldType { None, Public, Private, Static };
-private:
-    std::vector<std::pair<FieldType, std::vector<Node*>>> FieldStatements;
-
-    std::string getSymbol(FieldType type) {
-        switch (type) {
-        case FieldType::None:    return "";
-        case FieldType::Public:  return "public:";
-        case FieldType::Private: return "private:";
-        case FieldType::Static:  return "static:";
-        }
-        return "";
-    }
-public:
-    NodeBlockClass(std::vector<std::pair<FieldType, std::vector<Node*>>> fields)
-        : Node(EDeclType::BlockClass), FieldStatements(std::move(fields)) {
-    }
-
-    std::string print() override {
-        std::string out = "{\n";
-        for (auto& [type, stmts] : FieldStatements) {
-            out += getSymbol(type) + "\n";
-            out += Node::join(stmts, "\n");
-            if (!stmts.empty()) out += "\n";
-        }
-        out += "}";
-        return out;
-    }
-
-    ~NodeBlockClass() override {
-        for (auto& [type, stmts] : FieldStatements)
-            for (auto* field : stmts) delete field;
-    }
-};
-
 class NodeBaseClass : public Node
 {
 public:
@@ -584,6 +546,40 @@ public:
 
     ~NodeBaseClass() override {
         delete Identifier;
+    }
+};
+
+class NodeAccessSection : public Node {
+public:
+    enum class Access { None, Private, Public, Protected, Static };
+private:
+    Access access = Access::None;
+    std::vector<Node*> members;
+public:
+
+    NodeAccessSection(Access access, std::vector<Node*> members)
+        : access(access), members(std::move(members)) {
+    }
+
+    ~NodeAccessSection() override {
+        for (auto* e : members) delete e;
+    }
+
+    std::string StringAccess() {
+        switch (access) {
+        case Access::None:      return "";
+        case Access::Public:    return "public:";
+        case Access::Private:   return "private:";
+        case Access::Static:    return "static:";
+        case Access::Protected: return "static:";
+        }
+        return "";
+    }
+
+    std::string print() override {
+        std::string out = StringAccess() + "\n";
+        out += Node::join(members, "\n");
+        return out;
     }
 };
 
@@ -630,43 +626,6 @@ public:
     ~NodeClassTemplate() override {
         delete Template;
         delete Class;
-    }
-};
-
-class NodeBlockStruct : public Node
-{
-public:
-    enum class FieldType { None, Public, Static };
-private:
-    std::vector<std::pair<FieldType, std::vector<Node*>>> FieldStatements;
-
-    std::string getSymbol(FieldType type) {
-        switch (type) {
-        case FieldType::None:   return "";
-        case FieldType::Public: return "public:";
-        case FieldType::Static: return "static:";
-        }
-        return "";
-    }
-public:
-    NodeBlockStruct(std::vector<std::pair<FieldType, std::vector<Node*>>> fields)
-        : Node(EDeclType::BlockStruct), FieldStatements(std::move(fields)) {
-    }
-
-    std::string print() override {
-        std::string out = "{\n";
-        for (auto& [type, stmts] : FieldStatements) {
-            out += getSymbol(type) + "\n";
-            out += Node::join(stmts, "\n");
-            if (!stmts.empty()) out += "\n";
-        }
-        out += "}";
-        return out;
-    }
-
-    ~NodeBlockStruct() override {
-        for (auto& [type, stmts] : FieldStatements)
-            for (auto* field : stmts) delete field;
     }
 };
 

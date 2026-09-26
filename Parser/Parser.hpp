@@ -956,46 +956,57 @@ Node* Parser::parseClassBase() {
 }
 
 Node* Parser::parseClassBlock() {
-    using Field = NodeBlockClass::FieldType;
+    using Access = NodeAccessSection::Access;
+    std::vector<Node*> sections;
     std::vector<Node*> stmts;
-    std::vector<std::pair<Field, std::vector<Node*>>> fields;
-    Field current = Field::None;
+    Access current = Access::None;
+    bool hasSection = false;
 
-    auto toField = [](TokenKind k) -> Field {
+    auto toAccess = [](TokenKind k) -> Access {
         switch (k) {
-        case TokenKind::Private: return Field::Private;
-        case TokenKind::Public:  return Field::Public;
-        case TokenKind::Static:  return Field::Static;
-        default:                 return Field::None;
+        case TokenKind::Private:    return Access::Private;
+        case TokenKind::Public:     return Access::Public;
+        case TokenKind::Static:     return Access::Static;
+        case TokenKind::Protected:  return Access::Protected;
+        default:                    return Access::None;
+        }
+        };
+
+    auto flush = [&] {
+        if (hasSection || !stmts.empty()) {
+            sections.push_back(new NodeAccessSection(current, std::move(stmts)));
+            stmts.clear();
+            hasSection = false;
         }
         };
 
     while (!atEnd() && isNot(TokenKind::RightBrace)) {
-        Node* stmt = nullptr;
-        switch (token()) {
+        TokenKind k = token();
+
+        switch (k) {
         case TokenKind::Private:
         case TokenKind::Public:
-        case TokenKind::Static: {
-            TokenKind scope = token();
-            if (!stmts.empty() || current != Field::None) {
-                fields.push_back({ current, stmts });
-                stmts.clear();
-            }
-            current = toField(scope);
-            consume(scope);
+        case TokenKind::Static:
+        case TokenKind::Protected:
+            flush();
+            current = toAccess(k);
+            hasSection = true;
+            advance();
             consume(TokenKind::Colon);
             break;
+
+        case TokenKind::Class:
+            stmts.push_back(parseClass());
+            break;
+
+        default:
+            stmts.push_back(parseStatement(typescope::Class));
+            break;
         }
-        case TokenKind::Class: stmt = parseClass(); break;
-        default:               stmt = parseStatement(typescope::Class); break;
-        }
-        if (stmt) stmts.push_back(stmt);
     }
 
-    if (!stmts.empty() || current != Field::None)
-        fields.push_back({ current, stmts });
-
-    return new NodeBlockClass(fields);
+    flush();
+    return new NodeBlock(std::move(sections));
 }
 
 Node* Parser::parseForDecl()
