@@ -30,10 +30,34 @@ enum class ScopeKind {
     Template
 };
 
-struct Scope;
+class Entity {
+public:
+    enum class Kind { Symbol, Scope };
 
-struct Symbol {
-    std::string  name;
+    Kind        kind;
+    std::string name;
+
+    Entity(Kind k, std::string n)
+        : kind(k), name(std::move(n)) {
+    }
+    virtual ~Entity() = default;
+
+    Entity(const Entity&) = delete;
+    Entity& operator=(const Entity&) = delete;
+
+    bool isSymbol() const { return kind == Kind::Symbol; }
+    bool isScope()  const { return kind == Kind::Scope; }
+
+    virtual void dump(std::ostream& os, int depth) const = 0;
+
+protected:
+    static std::string indent(int depth) {
+        return std::string(depth * 2, ' ');
+    }
+};
+
+class Scope;
+struct Symbol : Entity {
     SymbolKind   kind = SymbolKind::Unknown;
     Node* typeNode = nullptr;
     Node* declNode = nullptr;
@@ -41,59 +65,106 @@ struct Symbol {
     size_t       line = 0;
     size_t       column = 0;
 
-    Symbol() = default;
+    Symbol() : Entity(Entity::Kind::Symbol, {}) {}
+
     Symbol(std::string n, SymbolKind k, Node* t, Node* d,
         size_t ln, size_t col)
-        : name(std::move(n)), kind(k), typeNode(t), declNode(d),
+        : Entity(Entity::Kind::Symbol, std::move(n)),
+        kind(k), typeNode(t), declNode(d),
         line(ln), column(col) {
+    }
+
+    void dump(std::ostream& os, int depth) const override {
+        os << indent(depth)
+            << symbolKindName(kind) << " " << name
+            << " @" << line << ":" << column << "\n";
+    }
+
+    static std::string symbolKindName(SymbolKind k) {
+        switch (k) {
+        case SymbolKind::Unknown:            return "Unknown";
+        case SymbolKind::Variable:           return "Var";
+        case SymbolKind::Parameter:          return "Param";
+        case SymbolKind::Function:           return "Func";
+        case SymbolKind::Class:              return "Class";
+        case SymbolKind::Field:              return "Field";
+        case SymbolKind::TemplateTypeParam:  return "TType";
+        case SymbolKind::TemplateValueParam: return "TValue";
+        case SymbolKind::Namespace:          return "Namespace";
+        }
+        return "?";
     }
 };
 
-class Scope {
+class Scope : public Entity {
 public:
-    ScopeKind                             kind;
-    std::string                           name;
+    ScopeKind                            kind;
     Scope* parent;
-    std::vector<std::unique_ptr<Scope>>   children;
-    std::vector<std::unique_ptr<Symbol>>  symbols;
+    std::vector<std::unique_ptr<Entity>> hierarchy;
 
     Scope(ScopeKind k, std::string n, Scope* p)
-        : kind(k), name(std::move(n)), parent(p) {
+        : Entity(Entity::Kind::Scope, std::move(n)),
+        kind(k), parent(p) {
     }
 
     Symbol* findLocal(const std::string& id) {
-        for (auto& s : symbols)
-            if (s->name == id) return s.get();
+        for (auto& e : hierarchy)
+            if (e->isSymbol() && e->name == id)
+                return static_cast<Symbol*>(e.get());
         return nullptr;
     }
 
     const Symbol* findLocal(const std::string& id) const {
-        for (auto& s : symbols)
-            if (s->name == id) return s.get();
+        for (const auto& e : hierarchy)
+            if (e->isSymbol() && e->name == id)
+                return static_cast<const Symbol*>(e.get());
         return nullptr;
     }
 
     std::vector<Symbol*> findLocalAll(const std::string& id) {
         std::vector<Symbol*> out;
-        for (auto& s : symbols)
-            if (s->name == id) out.push_back(s.get());
+        for (auto& e : hierarchy)
+            if (e->isSymbol() && e->name == id)
+                out.push_back(static_cast<Symbol*>(e.get()));
         return out;
+    }
+
+    void dump(std::ostream& os, int depth) const override {
+        os << indent(depth) << "Scope(" << scopeKindName(kind);
+        if (!name.empty()) os << " '" << name << "'";
+        os << ")\n";
+
+        for (const auto& e : hierarchy)
+            e->dump(os, depth + 1);
+    }
+
+    static std::string scopeKindName(ScopeKind k) {
+        switch (k) {
+        case ScopeKind::Global:    return "Global";
+        case ScopeKind::Namespace: return "Namespace";
+        case ScopeKind::Class:     return "Class";
+        case ScopeKind::Function:  return "Function";
+        case ScopeKind::Block:     return "Block";
+        case ScopeKind::For:       return "For";
+        case ScopeKind::Template:  return "Template";
+        }
+        return "?";
     }
 };
 
 class SymbolTable {
 public:
-    SymbolTable() 
+    SymbolTable()
     {
         auto global = std::make_unique<Scope>(ScopeKind::Global, "<global>", nullptr);
         current_ = global.get();
         root_ = std::move(global);
-    };
+    }
 
     Scope* enterScope(ScopeKind kind, const std::string& name = {}) {
         auto child = std::make_unique<Scope>(kind, name, current_);
         Scope* raw = child.get();
-        current_->children.push_back(std::move(child));
+        current_->hierarchy.push_back(std::move(child));
         current_ = raw;
         return current_;
     }
@@ -129,7 +200,7 @@ public:
 
         auto sym = std::make_unique<Symbol>(name, kind, typeNode, declNode, line, column);
         Symbol* raw = sym.get();
-        current_->symbols.push_back(std::move(sym));
+        current_->hierarchy.push_back(std::move(sym));
         return raw;
     }
 
@@ -155,7 +226,7 @@ public:
     }
 
     void dump(std::ostream& os = std::cout) const {
-        if (root_) dumpScope(root_.get(), os, 0);
+        if (root_) root_->dump(os, 0);
     }
 
 private:
@@ -173,49 +244,6 @@ private:
                 ", column " + std::to_string(prev->column) + ")";
         }
         throw ParseError::ParseError(line, column, msg);
-    }
-
-    static void dumpScope(const Scope* s, std::ostream& os, int depth) {
-        std::string pad(depth * 2, ' ');
-        os << pad << "Scope(" << scopeKindName(s->kind);
-        if (!s->name.empty()) os << " '" << s->name << "'";
-        os << ")\n";
-        for (const auto& sym : s->symbols) {
-            os << pad << "  " << symbolKindName(sym->kind)
-                << " " << sym->name
-                << " @" << sym->line << ":" << sym->column;
-            os << "\n";
-        }
-        for (const auto& c : s->children)
-            dumpScope(c.get(), os, depth + 1);
-    }
-
-    static std::string scopeKindName(ScopeKind k) {
-        switch (k) {
-        case ScopeKind::Global:    return "Global";
-        case ScopeKind::Namespace: return "Namespace";
-        case ScopeKind::Class:     return "Class";
-        case ScopeKind::Function:  return "Function";
-        case ScopeKind::Block:     return "Block";
-        case ScopeKind::For:       return "For";
-        case ScopeKind::Template:  return "Template";
-        }
-        return "?";
-    }
-
-    static std::string symbolKindName(SymbolKind k) {
-        switch (k) {
-        case SymbolKind::Unknown:            return "Unknown";
-        case SymbolKind::Variable:           return "Var";
-        case SymbolKind::Parameter:          return "Param";
-        case SymbolKind::Function:           return "Func";
-        case SymbolKind::Class:              return "Class";
-        case SymbolKind::Field:              return "Field";
-        case SymbolKind::TemplateTypeParam:  return "TType";
-        case SymbolKind::TemplateValueParam: return "TValue";
-        case SymbolKind::Namespace:          return "Namespace";
-        }
-        return "?";
     }
 };
 
