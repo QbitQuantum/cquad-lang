@@ -31,11 +31,12 @@ enum class ScopeKind {
 };
 
 class Entity {
+protected:
+    std::string name;
 public:
     enum class Kind { Symbol, Scope };
 
     Kind        kind;
-    std::string name;
 
     Entity(Kind k, std::string n)
         : kind(k), name(std::move(n)) {
@@ -47,6 +48,7 @@ public:
 
     bool isSymbol() const { return kind == Kind::Symbol; }
     bool isScope()  const { return kind == Kind::Scope; }
+    bool isNameEqual(const std::string& Name)  const { return name == Name; }
 
     virtual void dump(std::ostream& os, int depth) const = 0;
 
@@ -109,14 +111,14 @@ public:
 
     Symbol* findLocal(const std::string& id) {
         for (auto& e : hierarchy)
-            if (e->isSymbol() && e->name == id)
+            if (e->isSymbol() && e->isNameEqual(id))
                 return static_cast<Symbol*>(e.get());
         return nullptr;
     }
 
     const Symbol* findLocal(const std::string& id) const {
         for (const auto& e : hierarchy)
-            if (e->isSymbol() && e->name == id)
+            if (e->isSymbol() && e->isNameEqual(id))
                 return static_cast<const Symbol*>(e.get());
         return nullptr;
     }
@@ -124,7 +126,7 @@ public:
     std::vector<Symbol*> findLocalAll(const std::string& id) {
         std::vector<Symbol*> out;
         for (auto& e : hierarchy)
-            if (e->isSymbol() && e->name == id)
+            if (e->isSymbol() && e->isNameEqual(id))
                 out.push_back(static_cast<Symbol*>(e.get()));
         return out;
     }
