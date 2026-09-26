@@ -281,11 +281,11 @@ Node* Parser::parsePrimary() {
         right = new NodeUnaryOp(unary, right);
 
     while (true) {
-        if (token() == TokenKind::LeftBracket) {
+        if (is(TokenKind::LeftBracket)) {
             right = parseIndex(right);
             continue;
         }
-        if (token() == TokenKind::LeftParen) {
+        if (is(TokenKind::LeftParen)) {
             right = parseCall(right);
             continue;
         }
@@ -664,7 +664,7 @@ Node* Parser::parseStatement(int scope) {
     case TokenKind::IdentifierLiteral:
     case TokenKind::LeftBrace:
     {
-        if (token() == TokenKind::IdentifierLiteral)
+        if (is(TokenKind::IdentifierLiteral))
         {
             Node* name = parseIdentifier();
             TokenKind next = token();
@@ -704,7 +704,7 @@ Node* Parser::parseFunction() {
     {
     case TokenKind::Caret:
     case TokenKind::Tilde:
-        typef = token() == TokenKind::Caret ? typefunction::Constructor : typefunction::Destructor;
+        typef = is(TokenKind::Caret) ? typefunction::Constructor : typefunction::Destructor;
         advance();
         break;
     default: break;
@@ -810,7 +810,7 @@ Node* Parser::parseCaseBody() {
     symbols.enterScope(ScopeKind::Block);
     elem.push_back(parseBody(typescope::Case));
     symbols.exitScope();
-    if (token() == TokenKind::Break)
+    if (is(TokenKind::Break))
         elem.push_back(parseBreak());
     return new NodeCaseBody(std::move(elem));
 }
